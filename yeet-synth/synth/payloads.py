@@ -3,6 +3,7 @@ Realistic payload factory for all Yeet API endpoints.
 Uses Faker for human-plausible data. All generated values match
 the Zod schemas enforced by the API.
 """
+
 from __future__ import annotations
 
 import random
@@ -16,16 +17,25 @@ fake = Faker()
 
 # Known game IDs matching the platform's instant-game prefixes
 GAME_IDS = [
-    "game_crash_v1", "game_crash_v2",
-    "game_slots_classic", "game_slots_mega", "game_slots_turbo",
-    "game_roulette_eu", "game_blackjack_std",
+    "game_crash_v1",
+    "game_crash_v2",
+    "game_slots_classic",
+    "game_slots_mega",
+    "game_slots_turbo",
+    "game_roulette_eu",
+    "game_blackjack_std",
 ]
 
 BET_TYPES = ["spin", "straight", "auto_cashout", "split", "martingale"]
 
 RISK_SIGNAL_TYPES = [
-    "multiple_account_attempt", "rapid_bet_sequence", "velocity_breach",
-    "unusual_withdrawal", "device_mismatch", "ip_change", "kyc_document_reuse",
+    "multiple_account_attempt",
+    "rapid_bet_sequence",
+    "velocity_breach",
+    "unusual_withdrawal",
+    "device_mismatch",
+    "ip_change",
+    "kyc_document_reuse",
 ]
 
 JURISDICTIONS = ["GB", "MT", "CY", "GI", "IE", "SE"]
@@ -33,13 +43,16 @@ JURISDICTIONS = ["GB", "MT", "CY", "GI", "IE", "SE"]
 CURRENCIES = ["USD", "EUR"]
 
 FLAG_KEYS = [
-    "risk_eval_enabled", "instant_settlement_enabled",
-    "withdrawal_kyc_gate", "new_game_engine_pct", "bonus_engine_v2",
+    "risk_eval_enabled",
+    "instant_settlement_enabled",
+    "withdrawal_kyc_gate",
+    "new_game_engine_pct",
+    "bonus_engine_v2",
 ]
 
 
 def _amount(min_: float = 1.0, max_: float = 500.0) -> str:
-    """Return a valid decimal amount string matching /^\d+\.\d{2}$/"""
+    r"""Return a valid decimal amount string matching /^\d+\.\d{2}$/"""
     return f"{random.uniform(min_, max_):.2f}"
 
 
@@ -152,9 +165,9 @@ def settle_bet_payload(multiplier: float | None = None) -> dict[str, Any]:
 def malformed_bet_payload() -> dict[str, Any]:
     """Intentionally broken payload for chaos/validation testing."""
     return {
-        "game_id": "",            # violates min(1)
-        "amount": "not-a-number", # violates regex
-        "currency": "XYZ",        # not in enum
+        "game_id": "",  # violates min(1)
+        "amount": "not-a-number",  # violates regex
+        "currency": "XYZ",  # not in enum
     }
 
 

@@ -18,25 +18,26 @@ Metric contract:
   social_brand_relevance_confidence Histogram (no labels)
   social_classifier_failures_total  Counter  {classifier}
 """
+
 from __future__ import annotations
 
 import logging
 import threading
 from dataclasses import dataclass
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 
 from prometheus_client import (
-    Counter,
-    Histogram,
-    Gauge,
-    CollectorRegistry,
-    generate_latest,
     CONTENT_TYPE_LATEST,
-    start_http_server,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
 )
 
-from config.settings import METRICS_PORT, METRICS_PATH
+from config import settings as _cfg
+from config.settings import METRICS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,7 @@ METRICS = _build_metrics(_REGISTRY)
 
 # ── HTTP server ──────────────────────────────────────────────────────────────
 
+
 class _MetricsHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == METRICS_PATH or self.path == "/health":
@@ -178,10 +180,10 @@ def start_metrics_server() -> None:
     global _server, _thread
     if _server is not None:
         return
-    _server = HTTPServer(("0.0.0.0", METRICS_PORT), _MetricsHandler)
+    _server = HTTPServer(("0.0.0.0", _cfg.METRICS_PORT), _MetricsHandler)
     _thread = threading.Thread(target=_server.serve_forever, daemon=True)
     _thread.start()
     logger.info(
         "metrics_server_started",
-        extra={"port": METRICS_PORT, "path": METRICS_PATH},
+        extra={"port": _cfg.METRICS_PORT, "path": METRICS_PATH},
     )

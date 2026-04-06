@@ -1,4 +1,5 @@
 """Tests for the brand relevance classifier."""
+
 import pytest
 from nlp.relevance import BrandRelevanceClassifier
 
@@ -61,7 +62,9 @@ class TestDerivedLabels:
         assert "scam_concern" in r.derived_labels
 
     def test_payment_label_detected(self, clf):
-        r = clf.classify("yeet casino withdrawal pending for 3 days, can't get my funds")
+        r = clf.classify(
+            "yeet casino withdrawal pending for 3 days, can't get my funds"
+        )
         assert "payment_issue" in r.derived_labels
 
     def test_ux_praise_label(self, clf):
@@ -82,6 +85,6 @@ class TestBatch:
     def test_batch_consistency(self, clf):
         text = "yeet casino payment issue withdrawal blocked"
         single = clf.classify(text)
-        batch  = clf.classify_batch([text])[0]
+        batch = clf.classify_batch([text])[0]
         assert single.is_relevant == batch.is_relevant
         assert single.score == batch.score

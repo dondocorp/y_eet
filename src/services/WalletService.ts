@@ -1,6 +1,7 @@
 import { WalletRepository } from '../repositories/WalletRepository';
 import { WalletAccount, WalletTransaction } from '../types';
 import { WalletNotFoundError } from '../errors';
+import { walletTransfersTotal, walletTransferDuration, walletBalanceReadDuration } from '../telemetry/metrics';
 
 export class WalletService {
   private repo: WalletRepository;
@@ -10,7 +11,9 @@ export class WalletService {
   }
 
   async getBalance(userId: string): Promise<WalletAccount & { total: string }> {
+    const start = Date.now();
     const wallet = await this.repo.getByUserId(userId);
+    walletBalanceReadDuration.record(Date.now() - start);
     if (!wallet) throw new WalletNotFoundError(userId);
     return {
       ...wallet,
@@ -25,7 +28,8 @@ export class WalletService {
     paymentReference?: string;
     metadata?: Record<string, unknown>;
   }): Promise<WalletTransaction> {
-    return this.repo.credit({
+    const start = Date.now();
+    const tx = await this.repo.credit({
       userId: params.userId,
       amount: params.amount,
       type: 'deposit',
@@ -33,6 +37,9 @@ export class WalletService {
       idempotencyKey: params.idempotencyKey,
       metadata: params.metadata,
     });
+    walletTransfersTotal.add(1, { type: 'deposit', status: 'success' });
+    walletTransferDuration.record(Date.now() - start, { type: 'deposit' });
+    return tx;
   }
 
   async withdraw(params: {
@@ -41,13 +48,17 @@ export class WalletService {
     idempotencyKey: string;
     destinationId?: string;
   }): Promise<WalletTransaction> {
-    return this.repo.debit({
+    const start = Date.now();
+    const tx = await this.repo.debit({
       userId: params.userId,
       amount: params.amount,
       type: 'withdrawal',
       referenceId: params.destinationId ?? params.idempotencyKey,
       idempotencyKey: params.idempotencyKey,
     });
+    walletTransfersTotal.add(1, { type: 'withdrawal', status: 'success' });
+    walletTransferDuration.record(Date.now() - start, { type: 'withdrawal' });
+    return tx;
   }
 
   async reserveForBet(params: {

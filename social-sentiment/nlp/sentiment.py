@@ -18,17 +18,17 @@ Inference:
   - Truncates to 128 tokens (social text is short; faster, lower memory)
   - Failures return None-scored with method=failed for alerting
 """
+
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import Optional
 
 from config.settings import (
-    SENTIMENT_MODEL,
     CLASSIFIER_BATCH_SIZE,
     MODEL_CACHE_DIR,
+    SENTIMENT_MODEL,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,19 +39,19 @@ LABEL_MAP = {
     "LABEL_2": "positive",
     # Some model checkpoints use these
     "negative": "negative",
-    "neutral":  "neutral",
+    "neutral": "neutral",
     "positive": "positive",
 }
 
 
 @dataclass
 class SentimentResult:
-    label: Optional[str]        # positive|neutral|negative|None
-    score: Optional[float]      # confidence for winning label
+    label: Optional[str]  # positive|neutral|negative|None
+    score: Optional[float]  # confidence for winning label
     raw_pos: Optional[float]
     raw_neu: Optional[float]
     raw_neg: Optional[float]
-    method: str = "model"       # model|failed
+    method: str = "model"  # model|failed
 
 
 class SentimentClassifier:
@@ -74,8 +74,12 @@ class SentimentClassifier:
     def load(self) -> None:
         if self._pipe is not None:
             return
-        from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
         import torch
+        from transformers import (
+            AutoModelForSequenceClassification,
+            AutoTokenizer,
+            pipeline,
+        )
 
         device = 0 if torch.cuda.is_available() else -1
         tokenizer = AutoTokenizer.from_pretrained(
@@ -89,7 +93,7 @@ class SentimentClassifier:
             model=model,
             tokenizer=tokenizer,
             device=device,
-            top_k=None,            # return all 3 class scores
+            top_k=None,  # return all 3 class scores
             truncation=True,
             max_length=128,
             batch_size=CLASSIFIER_BATCH_SIZE,
@@ -112,9 +116,18 @@ class SentimentClassifier:
         try:
             raw_outputs = self._pipe(cleaned)
         except Exception as exc:
-            logger.error("sentiment_batch_failed", extra={"error": str(exc), "count": len(texts)})
+            logger.error(
+                "sentiment_batch_failed", extra={"error": str(exc), "count": len(texts)}
+            )
             return [
-                SentimentResult(label=None, score=None, raw_pos=None, raw_neu=None, raw_neg=None, method="failed")
+                SentimentResult(
+                    label=None,
+                    score=None,
+                    raw_pos=None,
+                    raw_neu=None,
+                    raw_neg=None,
+                    method="failed",
+                )
                 for _ in texts
             ]
 
@@ -132,14 +145,16 @@ class SentimentClassifier:
             best_label = max(score_map, key=lambda k: score_map[k])
             best_score = score_map[best_label]
 
-            results.append(SentimentResult(
-                label=best_label,
-                score=round(best_score, 4),
-                raw_pos=round(pos, 4),
-                raw_neu=round(neu, 4),
-                raw_neg=round(neg, 4),
-                method="model",
-            ))
+            results.append(
+                SentimentResult(
+                    label=best_label,
+                    score=round(best_score, 4),
+                    raw_pos=round(pos, 4),
+                    raw_neu=round(neu, 4),
+                    raw_neg=round(neg, 4),
+                    method="model",
+                )
+            )
 
         return results
 
@@ -149,6 +164,7 @@ class SentimentClassifier:
     def _preprocess(text: str) -> str:
         """Light normalisation — model handles most noise natively."""
         import re
+
         # Replace URLs to reduce noise
         text = re.sub(r"https?://\S+", "[URL]", text)
         # Replace @mentions (model was trained with @user → "@user" convention)

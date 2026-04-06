@@ -5,12 +5,12 @@ A profile is a named set of operational parameters that fully describes
 how the runner should behave: concurrency, RPS, duration, burst characteristics,
 scenario weights, and which validation modes to activate.
 """
+
 from __future__ import annotations
 
 from .config import ProfileConfig
 
 PROFILES: dict[str, ProfileConfig] = {
-
     # ── Smoke ─────────────────────────────────────────────────────────────────
     # Fast sanity check: one pass through every major endpoint.
     "smoke": ProfileConfig(
@@ -26,7 +26,6 @@ PROFILES: dict[str, ProfileConfig] = {
             "admin": 0.05,
         },
     ),
-
     # ── Low / steady state ────────────────────────────────────────────────────
     # Simulates off-peak traffic. Good for regression checks on deploys.
     "low": ProfileConfig(
@@ -42,7 +41,6 @@ PROFILES: dict[str, ProfileConfig] = {
             "admin": 0.05,
         },
     ),
-
     # ── Normal production ─────────────────────────────────────────────────────
     # Representative of median-hour production traffic.
     "normal": ProfileConfig(
@@ -58,7 +56,6 @@ PROFILES: dict[str, ProfileConfig] = {
             "admin": 0.05,
         },
     ),
-
     # ── Burst / spike event ───────────────────────────────────────────────────
     # Models a sports event or promotion where traffic spikes sharply.
     "burst": ProfileConfig(
@@ -72,12 +69,11 @@ PROFILES: dict[str, ProfileConfig] = {
         scenario_weights={
             "anonymous": 0.05,
             "authenticated": 0.15,
-            "active_bettor": 0.65,   # bet-heavy during a match
+            "active_bettor": 0.65,  # bet-heavy during a match
             "wallet_heavy": 0.10,
             "admin": 0.05,
         },
     ),
-
     # ── Chaos / error-heavy ───────────────────────────────────────────────────
     # Injects faults alongside normal traffic.
     # Used in staging to verify error handling and alerting.
@@ -95,7 +91,6 @@ PROFILES: dict[str, ProfileConfig] = {
             "admin": 0.05,
         },
     ),
-
     # ── Mesh validation ───────────────────────────────────────────────────────
     # Low traffic volume; focused on exercising Istio policies.
     "mesh": ProfileConfig(
@@ -112,7 +107,6 @@ PROFILES: dict[str, ProfileConfig] = {
             "admin": 0.05,
         },
     ),
-
     # ── Canary validation ─────────────────────────────────────────────────────
     # Sends traffic specifically to verify a canary rollout percentage.
     "canary": ProfileConfig(
@@ -135,7 +129,5 @@ PROFILES: dict[str, ProfileConfig] = {
 
 def get_profile(name: str) -> ProfileConfig:
     if name not in PROFILES:
-        raise ValueError(
-            f"Unknown profile '{name}'. Available: {', '.join(PROFILES)}"
-        )
+        raise ValueError(f"Unknown profile '{name}'. Available: {', '.join(PROFILES)}")
     return PROFILES[name]

@@ -14,33 +14,32 @@ Anti-fragility:
   - validate_post() guards before yielding
   - Rate limiting: 3s between scroll steps
 """
+
 from __future__ import annotations
 
 import logging
-import re
 from typing import AsyncIterator
 from urllib.parse import quote_plus
 
-from scraper.base import BaseScraper, RawPost
 from config.settings import SCRAPER_MAX_POSTS_PER_RUN
+
+from scraper.base import BaseScraper, RawPost
 
 logger = logging.getLogger(__name__)
 
 # Primary selectors (2024 design)
 SELECTORS_V1 = {
-    "tweet_article":  "article[data-testid='tweet']",
-    "tweet_text":     "div[data-testid='tweetText']",
-    "tweet_time":     "time",
-    "tweet_user":     "div[data-testid='User-Name'] span",
-    "tweet_likes":    "div[data-testid='like'] span",
+    "tweet_article": "article[data-testid='tweet']",
+    "tweet_text": "div[data-testid='tweetText']",
+    "tweet_time": "time",
+    "tweet_user": "div[data-testid='User-Name'] span",
+    "tweet_likes": "div[data-testid='like'] span",
     "tweet_retweets": "div[data-testid='retweet'] span",
-    "tweet_replies":  "div[data-testid='reply'] span",
-    "tweet_link":     "a[href*='/status/']",
+    "tweet_replies": "div[data-testid='reply'] span",
+    "tweet_link": "a[href*='/status/']",
 }
 
-TWITTER_SEARCH_URL = (
-    "https://twitter.com/search?q={q}&src=typed_query&f=live"
-)
+TWITTER_SEARCH_URL = "https://twitter.com/search?q={q}&src=typed_query&f=live"
 
 
 class TwitterScraper(BaseScraper):
@@ -74,9 +73,7 @@ class TwitterScraper(BaseScraper):
             max_scrolls = max(5, max_posts // 20)
 
             while collected < max_posts and scroll_attempts < max_scrolls:
-                articles = await page.query_selector_all(
-                    SELECTORS_V1["tweet_article"]
-                )
+                articles = await page.query_selector_all(SELECTORS_V1["tweet_article"])
 
                 for article in articles:
                     if collected >= max_posts:
@@ -88,9 +85,7 @@ class TwitterScraper(BaseScraper):
                             yield post
                             collected += 1
                     except Exception as exc:
-                        logger.debug(
-                            "twitter_extract_error", extra={"error": str(exc)}
-                        )
+                        logger.debug("twitter_extract_error", extra={"error": str(exc)})
 
                 # Scroll down
                 await page.evaluate("window.scrollBy(0, 2000)")
@@ -131,12 +126,12 @@ class TwitterScraper(BaseScraper):
 
         # Engagement
         likes_el = await article.query_selector(SELECTORS_V1["tweet_likes"])
-        rts_el   = await article.query_selector(SELECTORS_V1["tweet_retweets"])
-        rep_el   = await article.query_selector(SELECTORS_V1["tweet_replies"])
+        rts_el = await article.query_selector(SELECTORS_V1["tweet_retweets"])
+        rep_el = await article.query_selector(SELECTORS_V1["tweet_replies"])
 
-        likes    = self._parse_count(await likes_el.inner_text()    if likes_el else "0")
-        retweets = self._parse_count(await rts_el.inner_text()       if rts_el   else "0")
-        replies  = self._parse_count(await rep_el.inner_text()       if rep_el   else "0")
+        likes = self._parse_count(await likes_el.inner_text() if likes_el else "0")
+        retweets = self._parse_count(await rts_el.inner_text() if rts_el else "0")
+        replies = self._parse_count(await rep_el.inner_text() if rep_el else "0")
 
         # Link / ID
         link_el = await article.query_selector(SELECTORS_V1["tweet_link"])

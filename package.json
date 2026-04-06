@@ -1,16 +1,16 @@
 {
   "name": "yeet-platform-api",
   "version": "1.0.0",
-  "description": "Yeet iGaming Platform API",
+  "description": "Yeet Crypto-Casino Platform API",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only --notify false src/server.ts",
     "migrate": "ts-node src/db/migrate.ts",
-    "test": "jest --forceExit",
-    "test:unit": "jest --testPathPattern=unit --forceExit",
-    "test:integration": "jest --testPathPattern=integration --forceExit",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },

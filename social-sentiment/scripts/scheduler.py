@@ -3,6 +3,7 @@ In-process scheduler for Docker environments where cron isn't available.
 Runs every N minutes via schedule library.
 Set SCHEDULER_INTERVAL_MINUTES env var (default: 30).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,9 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import schedule
-
-from observability.logger import configure_logging
 from config.settings import LOG_LEVEL
+from observability.logger import configure_logging
 from storage.db import init_db, purge_old_data
 
 configure_logging(LOG_LEVEL)
@@ -28,9 +28,9 @@ INTERVAL = int(os.getenv("SCHEDULER_INTERVAL_MINUTES", "30"))
 
 def run_pipeline() -> None:
     try:
-        from pipeline.ingest import run_ingest_pipeline
-        from pipeline.aggregate import run_aggregation
         from alerts.evaluator import run_alert_evaluation
+        from pipeline.aggregate import run_aggregation
+        from pipeline.ingest import run_ingest_pipeline
 
         logger.info("scheduler_pipeline_start")
         result = asyncio.run(run_ingest_pipeline())
@@ -54,6 +54,7 @@ if __name__ == "__main__":
 
     # Start metrics server
     from metrics.exporter import start_metrics_server
+
     start_metrics_server()
 
     logger.info("scheduler_starting", extra={"interval_minutes": INTERVAL})

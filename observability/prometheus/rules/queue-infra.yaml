@@ -1,151 +1,142 @@
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
-metadata:
-  name: yeet-queue-infra
-  namespace: monitoring
-  labels:
-    prometheus: kube-prometheus
-    role: alert-rules
-spec:
-  groups:
-    # ── SQS Queue alerts (via CloudWatch exporter) ────────────────────────────
-    - name: yeet.queues
-      rules:
-        - alert: SQSQueueDepthHigh
-          expr: |
-            aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 1000
-          for: 5m
-          labels:
-            severity: warning
-            team: platform
-          annotations:
-            summary: "SQS queue {{ $labels.queue_name }} depth > 1000"
-            description: "Queue depth: {{ $value }}. Consumer may be lagging or stalled."
-            runbook: "https://wiki.internal/runbooks/queue-lag"
-            dashboard: "https://grafana.internal/d/queue-async"
+groups:
+  # ── SQS Queue alerts (via CloudWatch exporter) ────────────────────────────
+  - name: yeet.queues
+    rules:
+      - alert: SQSQueueDepthHigh
+        expr: |
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "SQS queue {{ $labels.queue_name }} depth > 1000"
+          description: "Queue depth: {{ $value }}. Consumer may be lagging or stalled."
+          runbook: "https://wiki.internal/runbooks/queue-lag"
+          dashboard: "https://grafana.internal/d/queue-async"
 
-        - alert: SQSQueueDepthCritical
-          expr: |
-            aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 10000
-          for: 3m
-          labels:
-            severity: critical
-            team: platform
-            page: "true"
-          annotations:
-            summary: "SQS queue {{ $labels.queue_name }} depth CRITICAL > 10k"
-            runbook: "https://wiki.internal/runbooks/queue-lag"
+      - alert: SQSQueueDepthCritical
+        expr: |
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 10000
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "SQS queue {{ $labels.queue_name }} depth CRITICAL > 10k"
+          runbook: "https://wiki.internal/runbooks/queue-lag"
 
-        - alert: SQSDeadLetterQueueGrowing
-          expr: |
-            aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*-dlq"} > 0
-          for: 5m
-          labels:
-            severity: warning
-            team: platform
-          annotations:
-            summary: "DLQ {{ $labels.queue_name }} has messages — processing failures"
-            description: "{{ $value }} messages in DLQ. Investigate poison messages."
-            runbook: "https://wiki.internal/runbooks/queue-lag"
+      - alert: SQSDeadLetterQueueGrowing
+        expr: |
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*-dlq"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "DLQ {{ $labels.queue_name }} has messages — processing failures"
+          description: "{{ $value }} messages in DLQ. Investigate poison messages."
+          runbook: "https://wiki.internal/runbooks/queue-lag"
 
-        - alert: SQSDeadLetterQueueCritical
-          expr: |
-            aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*-dlq"} > 100
-          for: 2m
-          labels:
-            severity: critical
-            team: platform
-            page: "true"
-          annotations:
-            summary: "DLQ {{ $labels.queue_name }} has > 100 messages — mass failure"
-            runbook: "https://wiki.internal/runbooks/queue-lag"
+      - alert: SQSDeadLetterQueueCritical
+        expr: |
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*-dlq"} > 100
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "DLQ {{ $labels.queue_name }} has > 100 messages — mass failure"
+          runbook: "https://wiki.internal/runbooks/queue-lag"
 
-        - alert: SQSConsumerNotConsuming
-          expr: |
-            rate(aws_sqs_number_of_messages_deleted_sum{queue_name=~"yeet-.*"}[10m]) == 0
-            and
-            aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 10
-          for: 10m
-          labels:
-            severity: critical
-            team: platform
-            page: "true"
-          annotations:
-            summary: "SQS queue {{ $labels.queue_name }} has messages but no consumer deletions"
-            description: "Consumer appears stalled. Queue has {{ $value }} messages with no deletions for 10m."
-            runbook: "https://wiki.internal/runbooks/queue-lag"
+      - alert: SQSConsumerNotConsuming
+        expr: |
+          rate(aws_sqs_number_of_messages_deleted_sum{queue_name=~"yeet-.*"}[10m]) == 0
+          and
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 10
+        for: 10m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "SQS queue {{ $labels.queue_name }} has messages but no consumer deletions"
+          description: "Consumer appears stalled. Queue has {{ $value }} messages with no deletions for 10m."
+          runbook: "https://wiki.internal/runbooks/queue-lag"
 
-    # ── Kubernetes pod/node alerts ────────────────────────────────────────────
-    - name: yeet.infra
-      rules:
-        - alert: PodCrashLooping
-          expr: |
-            increase(kube_pod_container_status_restarts_total{namespace!="monitoring"}[15m]) > 3
-          for: 0m
-          labels:
-            severity: warning
-            team: platform
-          annotations:
-            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
-            description: "{{ $value }} restarts in 15m. Check container logs."
-            runbook: "https://wiki.internal/runbooks/pod-crashloop"
+  # ── Kubernetes pod/node alerts ────────────────────────────────────────────
+  - name: yeet.infra
+    rules:
+      - alert: PodCrashLooping
+        expr: |
+          increase(kube_pod_container_status_restarts_total{namespace!="monitoring"}[15m]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+          description: "{{ $value }} restarts in 15m. Check container logs."
+          runbook: "https://wiki.internal/runbooks/pod-crashloop"
 
-        - alert: PodCrashLoopingCritical
-          expr: |
-            increase(kube_pod_container_status_restarts_total{namespace=~"auth|wallet|betting|game|fraud|settlement"}[15m]) > 5
-          for: 0m
-          labels:
-            severity: critical
-            team: platform
-            page: "true"
-          annotations:
-            summary: "Critical service pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
-            runbook: "https://wiki.internal/runbooks/pod-crashloop"
+      - alert: PodCrashLoopingCritical
+        expr: |
+          increase(kube_pod_container_status_restarts_total{namespace=~"auth|wallet|betting|game|fraud|settlement"}[15m]) > 5
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "Critical service pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+          runbook: "https://wiki.internal/runbooks/pod-crashloop"
 
-        - alert: NodeMemoryPressure
-          expr: |
-            (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.15
-          for: 5m
-          labels:
-            severity: warning
-            team: platform
-          annotations:
-            summary: "Node {{ $labels.instance }} memory < 15% available"
-            runbook: "https://wiki.internal/runbooks/node-resources"
+      - alert: NodeMemoryPressure
+        expr: |
+          (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Node {{ $labels.instance }} memory < 15% available"
+          runbook: "https://wiki.internal/runbooks/node-resources"
 
-        - alert: NodeDiskPressure
-          expr: |
-            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
-          for: 5m
-          labels:
-            severity: critical
-            team: platform
-            page: "true"
-          annotations:
-            summary: "Node {{ $labels.instance }} disk < 10% available on /"
-            runbook: "https://wiki.internal/runbooks/node-resources"
+      - alert: NodeDiskPressure
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "Node {{ $labels.instance }} disk < 10% available on /"
+          runbook: "https://wiki.internal/runbooks/node-resources"
 
-        - alert: PVCAlmostFull
-          expr: |
-            (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.1
-          for: 5m
-          labels:
-            severity: warning
-            team: platform
-          annotations:
-            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} < 10% available"
-            runbook: "https://wiki.internal/runbooks/node-resources"
+      - alert: PVCAlmostFull
+        expr: |
+          (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} < 10% available"
+          runbook: "https://wiki.internal/runbooks/node-resources"
 
-        - alert: DeploymentReplicasMismatch
-          expr: |
-            kube_deployment_spec_replicas{namespace=~"auth|wallet|betting|game|fraud|settlement"}
-            !=
-            kube_deployment_status_replicas_available{namespace=~"auth|wallet|betting|game|fraud|settlement"}
-          for: 5m
-          labels:
-            severity: warning
-            team: platform
-          annotations:
-            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
-            description: "Desired: {{ $value }} replicas, but not all available. Check pod events."
-            runbook: "https://wiki.internal/runbooks/deployment-regression"
+      - alert: DeploymentReplicasMismatch
+        expr: |
+          kube_deployment_spec_replicas{namespace=~"auth|wallet|betting|game|fraud|settlement"}
+          !=
+          kube_deployment_status_replicas_available{namespace=~"auth|wallet|betting|game|fraud|settlement"}
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
+          description: "Desired: {{ $value }} replicas, but not all available. Check pod events."
+          runbook: "https://wiki.internal/runbooks/deployment-regression"

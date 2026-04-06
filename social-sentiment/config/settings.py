@@ -2,6 +2,7 @@
 Central config pulled from environment variables.
 Loaded once at startup; immutable after.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,7 +25,9 @@ SCRAPER_ENABLED_PLATFORMS: list[str] = os.getenv(
 ).split(",")
 SCRAPER_MAX_POSTS_PER_RUN: int = int(os.getenv("SCRAPER_MAX_POSTS_PER_RUN", "100"))
 SCRAPER_PAGE_TIMEOUT_MS: int = int(os.getenv("SCRAPER_PAGE_TIMEOUT_MS", "30000"))
-SCRAPER_RATE_LIMIT_DELAY_S: float = float(os.getenv("SCRAPER_RATE_LIMIT_DELAY_S", "2.0"))
+SCRAPER_RATE_LIMIT_DELAY_S: float = float(
+    os.getenv("SCRAPER_RATE_LIMIT_DELAY_S", "2.0")
+)
 SCRAPER_MAX_RETRIES: int = int(os.getenv("SCRAPER_MAX_RETRIES", "3"))
 SCRAPER_HEADLESS: bool = os.getenv("SCRAPER_HEADLESS", "true").lower() == "true"
 
@@ -70,12 +73,8 @@ ALERTMANAGER_WEBHOOK_URL: str = os.getenv(
 )
 
 # Alert thresholds
-ALERT_NEG_RATIO_THRESHOLD: float = float(
-    os.getenv("ALERT_NEG_RATIO_THRESHOLD", "0.40")
-)
-ALERT_NEG_RATIO_WINDOW_HOURS: int = int(
-    os.getenv("ALERT_NEG_RATIO_WINDOW_HOURS", "1")
-)
+ALERT_NEG_RATIO_THRESHOLD: float = float(os.getenv("ALERT_NEG_RATIO_THRESHOLD", "0.40"))
+ALERT_NEG_RATIO_WINDOW_HOURS: int = int(os.getenv("ALERT_NEG_RATIO_WINDOW_HOURS", "1"))
 ALERT_MENTION_SPIKE_MULTIPLIER: float = float(
     os.getenv("ALERT_MENTION_SPIKE_MULTIPLIER", "3.0")
 )
@@ -83,7 +82,9 @@ ALERT_SCAM_COUNT_THRESHOLD: int = int(os.getenv("ALERT_SCAM_COUNT_THRESHOLD", "5
 ALERT_SUPPRESSION_MINUTES: int = int(os.getenv("ALERT_SUPPRESSION_MINUTES", "60"))
 
 # ── OTEL / Tracing ───────────────────────────────────────────────────────────
-OTEL_ENDPOINT: str = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
+OTEL_ENDPOINT: str = os.getenv(
+    "OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317"
+)
 OTEL_SERVICE_NAME: str = os.getenv("OTEL_SERVICE_NAME", "social-sentiment")
 OTEL_ENABLED: bool = os.getenv("OTEL_ENABLED", "true").lower() == "true"
 

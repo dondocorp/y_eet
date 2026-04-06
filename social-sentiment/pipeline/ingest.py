@@ -11,6 +11,7 @@ Orchestrates:
 Designed to run as a cron job or via `python -m pipeline.ingest`.
 Emits OTEL spans for every stage. Exposes prometheus counters via metrics module.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,7 +19,6 @@ import logging
 import re
 import time
 import unicodedata
-from datetime import datetime, timezone
 from typing import Optional
 
 from config.settings import (
@@ -26,19 +26,19 @@ from config.settings import (
     SCRAPER_ENABLED_PLATFORMS,
     SCRAPER_MAX_POSTS_PER_RUN,
 )
+from metrics.exporter import METRICS
+from nlp.relevance import BrandRelevanceClassifier
+from nlp.sentiment import SentimentClassifier
+from observability.tracer import get_tracer
 from storage import db
 from storage.db import (
     finish_scrape_run,
     insert_normalized_posts,
     insert_raw_posts,
     insert_scrape_run,
-    upsert_sentiment_results,
     new_run_id,
+    upsert_sentiment_results,
 )
-from nlp.relevance import BrandRelevanceClassifier
-from nlp.sentiment import SentimentClassifier
-from metrics.exporter import METRICS
-from observability.tracer import get_tracer
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer()
@@ -64,11 +64,9 @@ def _get_sentiment() -> SentimentClassifier:
 
 # ── Normalisation ────────────────────────────────────────────────────────────
 
-STRIP_RE  = re.compile(r"https?://\S+|@\w+|#")
-SPACE_RE  = re.compile(r"\s+")
-EMOJI_RE  = re.compile(
-    "[\U00010000-\U0010ffff]", flags=re.UNICODE
-)  # keep BMP emoji
+STRIP_RE = re.compile(r"https?://\S+|@\w+|#")
+SPACE_RE = re.compile(r"\s+")
+EMOJI_RE = re.compile("[\U00010000-\U0010ffff]", flags=re.UNICODE)  # keep BMP emoji
 
 
 def normalize_text(text: str) -> str:
@@ -80,7 +78,7 @@ def normalize_text(text: str) -> str:
 
 def estimate_influence(post_row) -> float:
     """Simple influence score 0–1 based on engagement."""
-    likes   = post_row.get("likes", 0) or 0
+    likes = post_row.get("likes", 0) or 0
     reposts = post_row.get("reposts", 0) or 0
     upvotes = post_row.get("upvotes", 0) or 0
     followers = post_row.get("author_followers", 0) or 0
@@ -93,11 +91,16 @@ def estimate_influence(post_row) -> float:
 
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 
+
 async def run_ingest_pipeline() -> dict:
     t0 = time.time()
     summary = {
-        "scraped": 0, "inserted": 0, "relevant": 0,
-        "positive": 0, "neutral": 0, "negative": 0,
+        "scraped": 0,
+        "inserted": 0,
+        "relevant": 0,
+        "positive": 0,
+        "neutral": 0,
+        "negative": 0,
         "errors": [],
     }
 
@@ -124,11 +127,15 @@ async def run_ingest_pipeline() -> dict:
                             )
 
                         posts = result.posts
-                        METRICS.posts_collected_total.labels(platform=platform).inc(len(posts))
+                        METRICS.posts_collected_total.labels(platform=platform).inc(
+                            len(posts)
+                        )
                         summary["scraped"] += len(posts)
 
                         if result.error:
-                            METRICS.scrape_failures_total.labels(platform=platform).inc()
+                            METRICS.scrape_failures_total.labels(
+                                platform=platform
+                            ).inc()
                             summary["errors"].append(
                                 f"{platform}/{query}: {result.error}"
                             )
@@ -136,20 +143,20 @@ async def run_ingest_pipeline() -> dict:
                         # Persist raw
                         raw_rows = [
                             {
-                                "post_id":    p.post_id,
-                                "platform":   p.platform,
+                                "post_id": p.post_id,
+                                "platform": p.platform,
                                 "scrape_run_id": run_id,
-                                "raw_text":   p.raw_text,
+                                "raw_text": p.raw_text,
                                 "author_handle": p.author_handle,
                                 "author_followers": p.author_followers,
-                                "post_url":   p.post_url,
-                                "posted_at":  p.posted_at,
-                                "likes":      p.likes,
-                                "reposts":    p.reposts,
-                                "replies":    p.replies,
-                                "upvotes":    p.upvotes,
-                                "subreddit":  p.subreddit,
-                                "language":   p.language,
+                                "post_url": p.post_url,
+                                "posted_at": p.posted_at,
+                                "likes": p.likes,
+                                "reposts": p.reposts,
+                                "replies": p.replies,
+                                "upvotes": p.upvotes,
+                                "subreddit": p.subreddit,
+                                "language": p.language,
                             }
                             for p in posts
                         ]
@@ -169,9 +176,12 @@ async def run_ingest_pipeline() -> dict:
                         logger.info(
                             "scrape_run_complete",
                             extra={
-                                "run_id": run_id, "platform": platform,
-                                "query": query, "posts": len(posts),
-                                "inserted": inserted, "duration_ms": dur_ms,
+                                "run_id": run_id,
+                                "platform": platform,
+                                "query": query,
+                                "posts": len(posts),
+                                "inserted": inserted,
+                                "duration_ms": dur_ms,
                             },
                         )
                     except Exception as exc:
@@ -180,7 +190,11 @@ async def run_ingest_pipeline() -> dict:
                         summary["errors"].append(f"scrape_{platform}: {exc}")
                         logger.error(
                             "scrape_run_error",
-                            extra={"run_id": run_id, "platform": platform, "error": str(exc)},
+                            extra={
+                                "run_id": run_id,
+                                "platform": platform,
+                                "error": str(exc),
+                            },
                         )
 
         # ── 2. Normalize unprocessed raw posts ──────────────────────────────
@@ -191,24 +205,26 @@ async def run_ingest_pipeline() -> dict:
                 clean = normalize_text(r["raw_text"])
                 if len(clean) < 5:
                     continue
-                norm_rows.append({
-                    "raw_post_id": r["id"],
-                    "platform":    r["platform"],
-                    "post_id":     r["post_id"],
-                    "clean_text":  clean,
-                    "char_count":  len(clean),
-                    "word_count":  len(clean.split()),
-                    "posted_at":   r["posted_at"],
-                })
+                norm_rows.append(
+                    {
+                        "raw_post_id": r["id"],
+                        "platform": r["platform"],
+                        "post_id": r["post_id"],
+                        "clean_text": clean,
+                        "char_count": len(clean),
+                        "word_count": len(clean.split()),
+                        "posted_at": r["posted_at"],
+                    }
+                )
             insert_normalized_posts(norm_rows)
 
         # ── 3 & 4. Classify unclassified posts ──────────────────────────────
         with tracer.start_as_current_span("classify_posts"):
             unclassified = db.fetch_unclassified_posts(limit=500)
             if unclassified:
-                rel_clf  = _get_relevance()
+                rel_clf = _get_relevance()
                 sent_clf = _get_sentiment()
-                texts    = [r["clean_text"] for r in unclassified]
+                texts = [r["clean_text"] for r in unclassified]
 
                 t2 = time.time()
                 # Relevance
@@ -261,23 +277,25 @@ async def run_ingest_pipeline() -> dict:
                     influence = estimate_influence(dict(row))
                     METRICS.brand_relevance_confidence.observe(rel.score)
 
-                    result_rows.append({
-                        "normalized_post_id": row["id"],
-                        "platform":           row["platform"],
-                        "post_id":            row["post_id"],
-                        "classifier_run_id":  clf_run_id,
-                        "is_relevant":        rel.is_relevant,
-                        "relevance_score":    rel.score,
-                        "relevance_method":   rel.method,
-                        "sentiment_label":    sent.label  if sent else None,
-                        "sentiment_score":    sent.score  if sent else None,
-                        "sentiment_raw_pos":  sent.raw_pos if sent else None,
-                        "sentiment_raw_neu":  sent.raw_neu if sent else None,
-                        "sentiment_raw_neg":  sent.raw_neg if sent else None,
-                        "derived_labels":     rel.derived_labels,
-                        "influence_weight":   influence,
-                        "posted_at":          row["posted_at"],
-                    })
+                    result_rows.append(
+                        {
+                            "normalized_post_id": row["id"],
+                            "platform": row["platform"],
+                            "post_id": row["post_id"],
+                            "classifier_run_id": clf_run_id,
+                            "is_relevant": rel.is_relevant,
+                            "relevance_score": rel.score,
+                            "relevance_method": rel.method,
+                            "sentiment_label": sent.label if sent else None,
+                            "sentiment_score": sent.score if sent else None,
+                            "sentiment_raw_pos": sent.raw_pos if sent else None,
+                            "sentiment_raw_neu": sent.raw_neu if sent else None,
+                            "sentiment_raw_neg": sent.raw_neg if sent else None,
+                            "derived_labels": rel.derived_labels,
+                            "influence_weight": influence,
+                            "posted_at": row["posted_at"],
+                        }
+                    )
 
                 upsert_sentiment_results(result_rows)
                 dur_cls = int((time.time() - t2) * 1000)
@@ -296,22 +314,28 @@ async def run_ingest_pipeline() -> dict:
 
         total_dur = int((time.time() - t0) * 1000)
         METRICS.pipeline_duration.labels(stage="total").observe(total_dur / 1000)
-        logger.info("ingest_pipeline_complete", extra={"summary": summary, "duration_ms": total_dur})
+        logger.info(
+            "ingest_pipeline_complete",
+            extra={"summary": summary, "duration_ms": total_dur},
+        )
         return summary
 
 
 def _get_scraper(platform: str):
     if platform == "reddit":
         from scraper.reddit import RedditScraper
+
         return RedditScraper()
     if platform == "twitter":
         from scraper.twitter import TwitterScraper
+
         return TwitterScraper()
     raise ValueError(f"Unknown platform: {platform}")
 
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(level="INFO")
     db.init_db()
     result = asyncio.run(run_ingest_pipeline())

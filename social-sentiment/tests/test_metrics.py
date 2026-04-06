@@ -1,11 +1,9 @@
 """Tests for the Prometheus metrics exposition."""
-import threading
+
 import time
 
 import requests
-import pytest
-
-from metrics.exporter import start_metrics_server, METRICS, _REGISTRY
+from metrics.exporter import _REGISTRY, METRICS, start_metrics_server
 from prometheus_client import generate_latest
 
 
@@ -44,7 +42,7 @@ def test_histogram_observation():
 
 def test_metrics_http_server(unused_tcp_port=19999):
     """Smoke test: metrics server returns 200 with valid content."""
-    import socket, time
+    import socket
 
     # Find a free port
     with socket.socket() as s:
@@ -52,10 +50,12 @@ def test_metrics_http_server(unused_tcp_port=19999):
         port = s.getsockname()[1]
 
     import config.settings as cfg
+
     orig_port = cfg.METRICS_PORT
     cfg.METRICS_PORT = port
 
     from metrics import exporter as me
+
     me._server = None  # reset singleton
     start_metrics_server()
     time.sleep(0.3)

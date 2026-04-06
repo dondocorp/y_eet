@@ -1,5 +1,6 @@
 import { ConfigRepository } from '../repositories/ConfigRepository';
 import { FeatureFlag } from '../types';
+import { configFlagReadsTotal } from '../telemetry/metrics';
 
 const CACHE_TTL_MS = 30_000;
 
@@ -55,8 +56,10 @@ export class ConfigService {
 
   private async getAllCached(): Promise<FeatureFlag[]> {
     if (this.cache && Date.now() < this.cache.expiresAt) {
+      configFlagReadsTotal.add(1, { cache: 'hit' });
       return this.cache.value;
     }
+    configFlagReadsTotal.add(1, { cache: 'miss' });
     const flags = await this.repo.getAll();
     this.cache = { value: flags, expiresAt: Date.now() + CACHE_TTL_MS };
     return flags;

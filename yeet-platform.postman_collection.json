@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Yeet Platform API",
-    "description": "Full iGaming platform API — auth, wallet, bets, game sessions, risk, feature flags, health, admin.\n\nWorkflow:\n1. Run **Auth / Login** (seed user) → access_token auto-saved\n2. Run **Wallet / Get Balance**\n3. Run **Games / Create Session**\n4. Run **Bets / Place Bet** (auto-settles for instant games)\n5. Run **Bets / Get Bet** to see outcome",
+    "description": "Full crypto-casino platform API — auth, wallet, bets, game sessions, risk, feature flags, health, admin.\n\nWorkflow:\n1. Run **Auth / Login** (seed user) → access_token auto-saved\n2. Run **Wallet / Get Balance**\n3. Run **Games / Create Session**\n4. Run **Bets / Place Bet** (auto-settles for instant games)\n5. Run **Bets / Get Bet** to see outcome",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

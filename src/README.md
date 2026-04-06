@@ -1,6 +1,6 @@
-# Yeet Platform API — Source
+# Platform API — Source
 
-Fastify 4 / TypeScript service. Handles auth, wallets, bets, game sessions, risk evaluation, and fraud signal ingestion. All money operations are idempotent and atomically safe.
+> Fastify 4 / TypeScript service. Auth, wallets, bets, game sessions, risk evaluation, and fraud signal ingestion. All money operations are idempotent and atomically safe.
 
 ---
 
@@ -57,7 +57,10 @@ src/
     └── migrations/      # Numbered SQL files — 001_initial, 002_seed, …
 ```
 
-The stack enforces strict **Route → Service → Repository** layering. Services own all business rules. Repositories own all SQL. Routes own nothing except request parsing and HTTP response shaping.
+The stack enforces strict **Route → Service → Repository** layering:
+- **Routes** — request parsing and HTTP response shaping only
+- **Services** — all business logic and rules
+- **Repositories** — all SQL, no business logic
 
 ---
 
@@ -103,10 +106,15 @@ Four signals evaluated synchronously on every bet:
 | Approaching daily loss limit | > 80% of limit | +10 |
 | Account tier blocked | `riskTier === 'blocked'` | → 100 |
 
-Score → tier: `<20 low` / `20–39 standard` / `40–59 elevated` / `60–79 high` / `≥80 blocked`.  
-Score ≥ 80 → `reject`. Score ≥ 60 → `review`. Otherwise → `allow`.
+| Score range | Tier | Decision |
+|---|---|---|
+| < 20 | `low` | allow |
+| 20–39 | `standard` | allow |
+| 40–59 | `elevated` | allow |
+| 60–79 | `high` | review |
+| ≥ 80 | `blocked` | reject |
 
-Circuit breaker (opossum): 30% error rate over 5 samples → open. Reset after 15s. **Fail-closed** — open circuit rejects with `riskScore: 100, decision: reject`. A risk service outage never silently passes unscored bets.
+Circuit breaker (opossum): 30% error rate over 5 samples → open. Reset after 15s. **Fail-closed** — an open circuit rejects with `riskScore: 100, decision: reject`. A risk service outage never silently passes unscored bets through.
 
 ### `AuthService` — Token rotation
 

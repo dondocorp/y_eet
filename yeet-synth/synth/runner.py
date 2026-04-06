@@ -8,6 +8,7 @@ Manages:
   - Graceful shutdown on SIGINT / duration expiry
   - Live progress reporting (stdout)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +20,7 @@ from typing import Callable, Optional
 from .client import SynthClient
 from .config import ProfileConfig
 from .metrics import MetricsCollector
-from .scenarios import pick_scenario, ScenarioResult
+from .scenarios import ScenarioResult, pick_scenario
 from .token_manager import TokenPool
 
 logger = logging.getLogger(__name__)
@@ -130,10 +131,14 @@ class TrafficRunner:
                         if self._on_scenario_done:
                             self._on_scenario_done(result)
                     except Exception as exc:
-                        logger.debug("Scenario %s raised: %s", scenario_cls.__name__, exc)
+                        logger.debug(
+                            "Scenario %s raised: %s", scenario_cls.__name__, exc
+                        )
 
         # Build all tasks
-        worker_tasks = [asyncio.create_task(_worker()) for _ in range(profile.concurrency)]
+        worker_tasks = [
+            asyncio.create_task(_worker()) for _ in range(profile.concurrency)
+        ]
         control_tasks = [
             asyncio.create_task(_timeout_stopper()),
             asyncio.create_task(_burst_manager()),
@@ -147,7 +152,8 @@ class TrafficRunner:
                 total = sum(m.total for m in snap.values())
                 errors = sum(m.server_error + m.timeout for m in snap.values())
                 logger.info(
-                    "[%ds] scenarios=%d requests=%d rps=%.1f error_rate=%.2f%% p99=%.0fms",
+                    "[%ds] scenarios=%d requests=%d "
+                    "rps=%.1f error_rate=%.2f%% p99=%.0fms",
                     int(self._metrics.elapsed_seconds),
                     self._scenario_count,
                     total,

@@ -22,6 +22,18 @@ jest.mock('../../../src/services/WalletService');
 jest.mock('../../../src/services/RiskService');
 jest.mock('../../../src/services/GameSessionService');
 jest.mock('../../../src/services/ConfigService');
+jest.mock('../../../src/telemetry/metrics', () => {
+  const counter    = { add: jest.fn() };
+  const histogram  = { record: jest.fn() };
+  return {
+    betPlacementsTotal:     counter,
+    betSettlementsTotal:    counter,
+    betPlacementDuration:   histogram,
+    betSettlementDuration:  histogram,
+    betVoidsTotal:          counter,
+    bettingVolumeUsd:       counter,
+  };
+});
 
 const MockBetRepo          = BetRepository          as jest.MockedClass<typeof BetRepository>;
 const MockUserRepo         = UserRepository         as jest.MockedClass<typeof UserRepository>;

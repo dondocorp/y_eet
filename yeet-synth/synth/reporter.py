@@ -8,6 +8,7 @@ Produces:
   4. Pass/fail evaluation panel
   5. JSON report file
 """
+
 from __future__ import annotations
 
 import json
@@ -19,21 +20,24 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
-    BarColumn, Progress, SpinnerColumn, TaskID,
-    TextColumn, TimeElapsedColumn, TimeRemainingColumn,
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 from rich.table import Table
-from rich.text import Text
 
 from .evaluator import EvaluationResult, Verdict
-from .mesh import MeshCheckResult, CheckStatus
+from .mesh import CheckStatus, MeshCheckResult
 from .metrics import MetricsCollector
 
 console = Console()
 
 
 class Reporter:
-
     def __init__(self, duration_seconds: int, json_path: str = "report.json") -> None:
         self._duration = duration_seconds
         self._json_path = json_path
@@ -87,7 +91,10 @@ class Reporter:
 
         # ── Endpoint metrics table ────────────────────────────────────────────
         table = Table(
-            title=f"Endpoint Metrics  ({metrics.total()} total requests, {metrics.rps:.1f} rps avg)",
+            title=(
+                f"Endpoint Metrics  ({metrics.total()} total requests, "
+                f"{metrics.rps:.1f} rps avg)"
+            ),
             box=box.ROUNDED,
             show_header=True,
             header_style="bold cyan",
@@ -152,7 +159,7 @@ class Reporter:
             c_table.add_column("Requests", justify="right")
             c_table.add_column("Weight", justify="right")
             for v, cnt in sorted(all_canary.items(), key=lambda x: -x[1]):
-                c_table.add_row(v, str(cnt), f"{cnt/total_canary:.1%}")
+                c_table.add_row(v, str(cnt), f"{cnt / total_canary:.1%}")
             console.print(c_table)
 
         # ── Mesh validation results ───────────────────────────────────────────
@@ -190,20 +197,26 @@ class Reporter:
         }
         style = style_map.get(ev.verdict, "white")
 
-        ev_table = Table(box=box.MINIMAL_DOUBLE_HEAD, show_header=True, header_style="bold")
+        ev_table = Table(
+            box=box.MINIMAL_DOUBLE_HEAD, show_header=True, header_style="bold"
+        )
         ev_table.add_column("Check", min_width=40)
         ev_table.add_column("Verdict", justify="center")
         ev_table.add_column("Detail")
 
         v_styles = {
-            Verdict.PASS: "green", Verdict.WARN: "yellow",
-            Verdict.FAIL: "red", Verdict.INSUFFICIENT_DATA: "dim",
+            Verdict.PASS: "green",
+            Verdict.WARN: "yellow",
+            Verdict.FAIL: "red",
+            Verdict.INSUFFICIENT_DATA: "dim",
         }
         for c in ev.checks:
             vs = v_styles.get(c.verdict, "white")
             detail = c.message
             if c.observed is not None and c.threshold is not None:
-                detail = f"{detail}  ({c.observed:.2f}{c.unit} / {c.threshold:.2f}{c.unit})"
+                detail = (
+                    f"{detail}  ({c.observed:.2f}{c.unit} / {c.threshold:.2f}{c.unit})"
+                )
             ev_table.add_row(
                 c.name,
                 f"[{vs}]{c.verdict.value}[/{vs}]",
@@ -216,11 +229,13 @@ class Reporter:
             f"exit_code={ev.exit_code}  "
             f"fails={len(ev.fails())}  warns={len(ev.warns())}"
         )
-        console.print(Panel(
-            ev_table,
-            title=f"[bold]Evaluation: {summary_text}",
-            border_style=style,
-        ))
+        console.print(
+            Panel(
+                ev_table,
+                title=f"[bold]Evaluation: {summary_text}",
+                border_style=style,
+            )
+        )
 
     # ── JSON report ───────────────────────────────────────────────────────────
 
@@ -258,7 +273,9 @@ class Reporter:
                 "avg_attempt_count": round(em.avg_attempt_count, 3),
                 "idempotency_hits": em.idempotency_hits,
                 "auth_failures": em.auth_failures,
-                "via_istio_pct": round(em.via_istio / em.total * 100, 1) if em.total else 0,
+                "via_istio_pct": round(em.via_istio / em.total * 100, 1)
+                if em.total
+                else 0,
                 "status_codes": dict(em.status_codes),
                 "canary_distribution": dict(em.canary_hits),
                 "trace_propagation_rate_pct": round(em.trace_propagation_rate * 100, 1),
@@ -266,15 +283,24 @@ class Reporter:
 
         if mesh_results:
             report["mesh"] = [
-                {"check": mr.name, "status": mr.status.value, "message": mr.message,
-                 "details": mr.details}
+                {
+                    "check": mr.name,
+                    "status": mr.status.value,
+                    "message": mr.message,
+                    "details": mr.details,
+                }
                 for mr in mesh_results
             ]
 
         if chaos_results:
             report["chaos"] = [
-                {"scenario": cr.scenario, "passed": cr.passed,
-                 "expected": cr.expected_status, "got": cr.status_code, "note": cr.note}
+                {
+                    "scenario": cr.scenario,
+                    "passed": cr.passed,
+                    "expected": cr.expected_status,
+                    "got": cr.status_code,
+                    "note": cr.note,
+                }
                 for cr in chaos_results
             ]
 
