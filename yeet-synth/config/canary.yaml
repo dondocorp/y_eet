@@ -1,0 +1,49 @@
+# Canary validation profile
+# Use when a canary deployment is live and you want to verify the split percentage.
+#
+# Prerequisite: Istio VirtualService must be configured to set a version identifier
+# in one of: x-canary-version, x-version, x-app-version response headers.
+#
+# Usage:
+#   python main.py canary \
+#     --config config/canary.yaml \
+#     --expected-version v2.1.0 \
+#     --expected-weight 0.15
+
+base_url: "${SYNTH_BASE_URL:-http://api.yeet.internal}"
+environment: "staging"
+
+token_pool_size: 15
+seed_admin_user: false
+
+profile:
+  name: canary
+  concurrency: 10
+  duration_seconds: 120
+  rps_target: 25.0
+  canary_validation: true
+  mesh_validation: true
+  scenario_weights:
+    anonymous: 0.05
+    authenticated: 0.30
+    active_bettor: 0.40
+    wallet_heavy: 0.20
+    admin: 0.05
+
+thresholds:
+  max_error_rate: 0.03       # slightly looser during canary
+  p99_latency_ms: 3000.0
+  canary_split_tolerance: 0.05
+
+mesh:
+  validate_canary: true
+  validate_retries: true
+  validate_timeouts: true
+  validate_circuit_breaker: false
+  validate_trace_propagation: true
+  validate_mtls: true
+  canary:
+    header_name: "x-canary-version"
+    expected_version: "canary"
+    expected_weight: 0.10
+    split_tolerance: 0.05

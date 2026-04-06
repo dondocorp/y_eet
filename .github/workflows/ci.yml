@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Lint + type-check (fast gate — fails early before running tests)
+  # ─────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Unit tests + coverage report
+  # ─────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit -- --coverage --coverageReporters=text --coverageReporters=lcov --coverageReporters=json-summary
+        env:
+          NODE_ENV: test
+          # Minimal env so modules load without crashing
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          JWT_SECRET: test-secret-not-real
+          LOG_LEVEL: silent
+
+      # Post a beautiful, line-by-line coverage comment on the PR
+      - name: Coverage report comment
+        uses: ArtiomTr/jest-coverage-report-action@v2
+        if: github.event_name == 'pull_request'
+        with:
+          skip-step: all          # we already ran the tests above
+          coverage-file: coverage/coverage-summary.json
+          base-coverage-file: coverage/coverage-summary.json
+          annotations: all
+          threshold: 65
+
+      # Always upload LCOV as an artifact so it's available for any external tool
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          retention-days: 30
+
+      # Optional: publish to Codecov (free for public repos, secrets optional)
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false   # don't break CI if Codecov is unreachable
+        continue-on-error: true
