@@ -32,7 +32,7 @@ git log --oneline origin/main~1..origin/main
 
 # Or run locally
 k6 run observability/k6/checks/post-deploy-validation.js \
-  -e BASE_URL=https://api.yeet.com \
+  -e BASE_URL=https://api.y_eet.com \
   -e SYNTH_EMAIL=$SYNTH_EMAIL \
   -e SYNTH_PASSWORD=$SYNTH_PASSWORD
 ```
@@ -43,7 +43,7 @@ k6 run observability/k6/checks/post-deploy-validation.js \
 sum(rate(istio_requests_total{destination_service_name="<service>", response_code=~"5.."}[5m]))
 
 # Was it a latency regression?
-histogram_quantile(0.99, sum(rate(yeet_bet_placement_duration_ms_bucket[5m])) by (le))
+histogram_quantile(0.99, sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le))
 ```
 
 ## Rollback Decision Tree

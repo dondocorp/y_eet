@@ -1,10 +1,10 @@
-# yeet-synth default configuration
+# y_eet-synth default configuration
 # All values can be overridden by environment variables (see .env.example)
 
 base_url: "http://localhost:8080"
 internal_base_url: "http://localhost:8080"
 
-service_name: "yeet-synth"
+service_name: "y_eet-synth"
 environment: "local"
 
 otel_endpoint: "http://localhost:4317"

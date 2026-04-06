@@ -10,7 +10,7 @@
 #     --expected-version v2.1.0 \
 #     --expected-weight 0.15
 
-base_url: "${SYNTH_BASE_URL:-http://api.yeet.internal}"
+base_url: "${SYNTH_BASE_URL:-http://api.y_eet.internal}"
 environment: "staging"
 
 token_pool_size: 15

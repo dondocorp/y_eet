@@ -1,4 +1,4 @@
-# yeet-synth
+# y_eet-synth
 
 > Production-grade synthetic traffic generator and service mesh validator for the Yeet Crypto-Casino Platform.
 
@@ -25,7 +25,7 @@ An internal reliability and platform engineering tool. Generates realistic mixed
 
 ```bash
 # 1. Set up
-cd yeet-synth
+cd y_eet-synth
 make install
 cp .env.example .env
 # Edit .env — set SYNTH_BASE_URL at minimum
@@ -185,19 +185,19 @@ stages:
   - verify
 
 variables:
-  SYNTH_BASE_URL: "https://api-staging.yeet.com"
+  SYNTH_BASE_URL: "https://api-staging.y_eet.com"
 
 smoke-test:
   stage: verify
   image: python:3.11-slim
   script:
-    - cd yeet-synth && pip install -r requirements.txt -q
+    - cd y_eet-synth && pip install -r requirements.txt -q
     - python main.py smoke --base-url $SYNTH_BASE_URL --json-report report.json
   artifacts:
     reports:
       junit: report.json
     paths:
-      - yeet-synth/report.json
+      - y_eet-synth/report.json
     when: always
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
@@ -206,13 +206,13 @@ post-deploy-mesh-validation:
   stage: verify
   image: python:3.11-slim
   script:
-    - cd yeet-synth && pip install -r requirements.txt -q
+    - cd y_eet-synth && pip install -r requirements.txt -q
     - python main.py mesh --validate-all --duration 120
         --base-url $SYNTH_BASE_URL --json-report report-mesh.json
   allow_failure: false
   artifacts:
     paths:
-      - yeet-synth/report-mesh.json
+      - y_eet-synth/report-mesh.json
     when: always
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
@@ -221,7 +221,7 @@ canary-gate:
   stage: verify
   image: python:3.11-slim
   script:
-    - cd yeet-synth && pip install -r requirements.txt -q
+    - cd y_eet-synth && pip install -r requirements.txt -q
     - python main.py canary
         --base-url $SYNTH_BASE_URL
         --expected-version $CANARY_VERSION
@@ -254,7 +254,7 @@ canary-gate:
 ## Project Structure
 
 ```
-yeet-synth/
+y_eet-synth/
 ├── main.py              CLI entrypoint (click)
 ├── synth/
 │   ├── config.py        Config dataclasses + YAML/env loader

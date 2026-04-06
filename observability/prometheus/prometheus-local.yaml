@@ -22,12 +22,12 @@ scrape_configs:
     static_configs:
       - targets: ["otel-collector:8888"]
 
-  - job_name: yeet-api
+  - job_name: y_eet-api
     static_configs:
       - targets: ["api:9464"]
     relabel_configs:
       - target_label: service_name
-        replacement: yeet-platform-api
+        replacement: y_eet-platform-api
 
   - job_name: social-sentiment
     static_configs:

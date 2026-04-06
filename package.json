@@ -1,5 +1,5 @@
 {
-  "name": "yeet-platform-api",
+  "name": "y_eet-platform-api",
   "version": "1.0.0",
   "description": "Yeet Crypto-Casino Platform API",
   "main": "dist/server.js",

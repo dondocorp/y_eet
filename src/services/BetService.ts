@@ -25,7 +25,7 @@ import {
   bettingVolumeUsd,
 } from '../telemetry/metrics';
 
-const tracer = trace.getTracer('yeet-bet-service');
+const tracer = trace.getTracer('y_eet-bet-service');
 
 export interface PlaceBetParams {
   userId: string;

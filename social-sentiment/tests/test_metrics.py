@@ -3,8 +3,9 @@
 import time
 
 import requests
-from metrics.exporter import _REGISTRY, METRICS, start_metrics_server
 from prometheus_client import generate_latest
+
+from metrics.exporter import _REGISTRY, METRICS, start_metrics_server
 
 
 def test_metrics_registry_has_required_metrics():

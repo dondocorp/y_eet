@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
 from config.settings import (
     MODEL_CACHE_DIR,
     RELEVANCE_EMBEDDING_ENABLED,
@@ -47,7 +48,7 @@ class BrandRelevanceClassifier:
     Loading embeddings is lazy and guarded by a flag.
     """
 
-    def __init__(self, brand_id: str = "yeet_casino") -> None:
+    def __init__(self, brand_id: str = "y_eet_casino") -> None:
         cfg = yaml.safe_load(KEYWORDS_PATH.read_text())
         brand = next(b for b in cfg["brand_queries"] if b["id"] == brand_id)
 
@@ -79,11 +80,17 @@ class BrandRelevanceClassifier:
 
     # ── Public API ──────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _norm(s: str) -> str:
+        """Strip underscores for fuzzy brand-name matching (y_eet → yeet)."""
+        return s.replace("_", "")
+
     def classify(self, text: str) -> RelevanceResult:
         t = text.lower()
+        tn = self._norm(t)
 
         # 1. Hard exclusion
-        excl_hits = [k for k in self._exclusions if k in t]
+        excl_hits = [k for k in self._exclusions if self._norm(k) in tn]
         if excl_hits:
             return RelevanceResult(
                 is_relevant=False,
@@ -92,10 +99,10 @@ class BrandRelevanceClassifier:
                 matched_exclusions=excl_hits,
             )
 
-        prim_hits = [k for k in self._primary if k in t]
-        sec_hits = [k for k in self._secondary if k in t]
+        prim_hits = [k for k in self._primary if self._norm(k) in tn]
+        sec_hits = [k for k in self._secondary if self._norm(k) in tn]
         ctx_hits = [k for k in self._context if k in t]
-        soft_hits = [k for k in self._soft_excl if k in t]
+        soft_hits = [k for k in self._soft_excl if self._norm(k) in tn]
         derived = self._classify_derived(t)
 
         # 2. Primary match → always relevant
@@ -156,10 +163,11 @@ class BrandRelevanceClassifier:
     # ── Internals ───────────────────────────────────────────────────────────
 
     def _classify_derived(self, text_lower: str) -> list[str]:
+        tn = self._norm(text_lower)
         return [
             label
             for label, keywords in self._derived_rules.items()
-            if any(k in text_lower for k in keywords)
+            if any(self._norm(k) in tn for k in keywords)
         ]
 
     def _embedding_similarity(self, text: str) -> float:

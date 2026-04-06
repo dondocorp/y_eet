@@ -29,7 +29,7 @@ spec:
       prometheus:
         config:
           scrape_configs:
-            - job_name: yeet-app-metrics
+            - job_name: y_eet-app-metrics
               scrape_interval: 15s
               kubernetes_sd_configs:
                 - role: pod

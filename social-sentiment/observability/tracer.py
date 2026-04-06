@@ -6,13 +6,14 @@ Span naming mirrors the pipeline stage names expected in Tempo.
 
 from __future__ import annotations
 
-from config.settings import OTEL_ENABLED, OTEL_ENDPOINT, OTEL_SERVICE_NAME
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
+
+from config.settings import OTEL_ENABLED, OTEL_ENDPOINT, OTEL_SERVICE_NAME
 
 _tracer: trace.Tracer | None = None
 

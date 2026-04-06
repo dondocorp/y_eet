@@ -1,50 +1,50 @@
 groups:
   # ── Recording rules for SLO computation ──────────────────────────────────
-  - name: yeet.slo.recordings
+  - name: y_eet.slo.recordings
     interval: 30s
     rules:
       # Auth SLI: successful requests / total requests (excludes 4xx client errors)
-      - record: job:yeet_auth_requests:success_rate5m
+      - record: job:y_eet_auth_requests:success_rate5m
         expr: |
-          sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[5m]))
+          sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[5m]))
           /
-          sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*"}[5m]))
+          sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[5m]))
 
       # Bet placement SLI (mesh-sourced, includes all errors)
-      - record: job:yeet_bet_placement:success_rate5m
+      - record: job:y_eet_bet_placement:success_rate5m
         expr: |
           sum(rate(istio_requests_total{destination_service_name="bet-svc", response_code!~"5.."}[5m]))
           /
           sum(rate(istio_requests_total{destination_service_name="bet-svc"}[5m]))
 
       # Wallet read SLI
-      - record: job:yeet_wallet_read:success_rate5m
+      - record: job:y_eet_wallet_read:success_rate5m
         expr: |
           sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http", response_code!~"5.."}[5m]))
           /
           sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http"}[5m]))
 
       # P99 bet placement latency (app-sourced, end-to-end including wallet+risk)
-      - record: job:yeet_bet_placement:p99_latency5m
+      - record: job:y_eet_bet_placement:p99_latency5m
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_bet_placement_duration_ms_bucket[5m])) by (le)
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le)
           )
 
       # P99 wallet transfer latency
-      - record: job:yeet_wallet_transfer:p99_latency5m
+      - record: job:y_eet_wallet_transfer:p99_latency5m
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_wallet_transfer_duration_ms_bucket[5m])) by (le)
+            sum(rate(y_eet_wallet_transfer_duration_ms_bucket[5m])) by (le)
           )
 
   # ── Latency alerts ────────────────────────────────────────────────────────
-  - name: yeet.latency
+  - name: y_eet.latency
     rules:
       - alert: BetPlacementP99LatencyHigh
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_bet_placement_duration_ms_bucket[5m])) by (le)
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le)
           ) > 500
         for: 3m
         labels:
@@ -60,7 +60,7 @@ groups:
       - alert: BetPlacementP99LatencyCritical
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_bet_placement_duration_ms_bucket[5m])) by (le)
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le)
           ) > 2000
         for: 2m
         labels:
@@ -77,7 +77,7 @@ groups:
       - alert: WalletTransferP99LatencyHigh
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_wallet_transfer_duration_ms_bucket[5m])) by (le)
+            sum(rate(y_eet_wallet_transfer_duration_ms_bucket[5m])) by (le)
           ) > 200
         for: 3m
         labels:
@@ -92,7 +92,7 @@ groups:
       - alert: RiskEvalP99LatencyHigh
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_risk_eval_duration_ms_bucket[5m])) by (le)
+            sum(rate(y_eet_risk_eval_duration_ms_bucket[5m])) by (le)
           ) > 80
         for: 2m
         labels:
@@ -105,7 +105,7 @@ groups:
           runbook: "https://wiki.internal/runbooks/risk-service"
 
   # ── Error rate alerts ─────────────────────────────────────────────────────
-  - name: yeet.errors
+  - name: y_eet.errors
     rules:
       - alert: APIHigh5xxRate
         expr: |
@@ -158,9 +158,9 @@ groups:
 
       - alert: AuthHighFailureRate
         expr: |
-          sum(rate(yeet_auth_failures_total[5m]))
+          sum(rate(y_eet_auth_failures_total[5m]))
           /
-          (sum(rate(yeet_auth_tokens_issued_total[5m])) + sum(rate(yeet_auth_failures_total[5m])))
+          (sum(rate(y_eet_auth_tokens_issued_total[5m])) + sum(rate(y_eet_auth_failures_total[5m])))
           > 0.1
         for: 3m
         labels:
@@ -174,9 +174,9 @@ groups:
 
       - alert: AuthHighFailureRateCritical
         expr: |
-          sum(rate(yeet_auth_failures_total[5m]))
+          sum(rate(y_eet_auth_failures_total[5m]))
           /
-          (sum(rate(yeet_auth_tokens_issued_total[5m])) + sum(rate(yeet_auth_failures_total[5m])))
+          (sum(rate(y_eet_auth_tokens_issued_total[5m])) + sum(rate(y_eet_auth_failures_total[5m])))
           > 0.3
         for: 2m
         labels:
@@ -191,7 +191,7 @@ groups:
 
       - alert: RiskCircuitBreakerOpen
         expr: |
-          increase(yeet_risk_circuit_breaker_open_total[5m]) > 0
+          increase(y_eet_risk_circuit_breaker_open_total[5m]) > 0
         for: 0m
         labels:
           severity: warning
@@ -203,13 +203,13 @@ groups:
           runbook: "https://wiki.internal/runbooks/risk-service"
 
   # ── Duplicate bet anomaly ─────────────────────────────────────────────────
-  - name: yeet.business-anomalies
+  - name: y_eet.business-anomalies
     rules:
       - alert: BetIdempotencyHitSpikeAnomaly
         expr: |
-          sum(rate(yeet_bet_placements_total{status="idempotency_hit"}[5m]))
+          sum(rate(y_eet_bet_placements_total{status="idempotency_hit"}[5m]))
           /
-          sum(rate(yeet_bet_placements_total[5m]))
+          sum(rate(y_eet_bet_placements_total[5m]))
           > 0.15
         for: 5m
         labels:
@@ -223,9 +223,9 @@ groups:
 
       - alert: WalletTransferFailureSpike
         expr: |
-          sum(rate(yeet_wallet_transfers_total{status="error"}[5m]))
+          sum(rate(y_eet_wallet_transfers_total{status="error"}[5m]))
           /
-          sum(rate(yeet_wallet_transfers_total[5m]))
+          sum(rate(y_eet_wallet_transfers_total[5m]))
           > 0.05
         for: 2m
         labels:

@@ -28,7 +28,7 @@ def test_insert_and_fetch_raw_posts(tmp_db, sample_posts):
     conn.execute(
         "INSERT INTO scrape_runs "
         "(run_id, platform, query, started_at, status) VALUES (?,?,?,?,?)",
-        ("run-test-001", "reddit", "yeet casino", "2024-01-15T14:00:00Z", "running"),
+        ("run-test-001", "reddit", "y_eet casino", "2024-01-15T14:00:00Z", "running"),
     )
     conn.commit()
     conn.close()
@@ -57,7 +57,7 @@ def test_insert_scrape_run(tmp_db):
     orig = sdb.DB_PATH
     sdb.DB_PATH = tmp_db
     try:
-        run_id = db.insert_scrape_run("reddit", "yeet casino")
+        run_id = db.insert_scrape_run("reddit", "y_eet casino")
         assert len(run_id) == 36  # UUID4
 
         db.finish_scrape_run(run_id, "success", posts_found=42, duration_ms=3000)
@@ -84,7 +84,7 @@ def test_insert_alert_event(tmp_db):
             "alert_name": "NegativeSentimentSpike",
             "severity": "warning",
             "platform": "reddit",
-            "brand_query": "yeet casino",
+            "brand_query": "y_eet casino",
             "message": "Test alert",
             "trigger_value": 0.55,
             "threshold": 0.40,

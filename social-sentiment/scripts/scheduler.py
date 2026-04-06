@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import schedule
+
 from config.settings import LOG_LEVEL
 from observability.logger import configure_logging
 from storage.db import init_db, purge_old_data

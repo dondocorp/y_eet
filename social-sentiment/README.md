@@ -35,9 +35,9 @@ A self-contained Python subsystem that runs on a 30-minute cron schedule. It is 
         │
         ▼
   Relevance Classifier  — keyword rules + optional embedding gate
-  ├── Hard exclusions  (yeet baby, yeet meme, ...)
-  ├── Primary match    (yeet casino, yeetcasino, ...)   → score ≥ 0.85
-  ├── Secondary + context  (yeet + casino/gambling/…)   → score ≥ 0.55
+  ├── Hard exclusions  (y_eet baby, y_eet meme, ...)
+  ├── Primary match    (y_eet casino, y_eetcasino, ...)   → score ≥ 0.85
+  ├── Secondary + context  (y_eet + casino/gambling/…)   → score ≥ 0.55
   └── Derived labels   (scam_concern, payment_issue, ux_praise, hype, …)
         │ relevant posts only
         ▼
@@ -108,7 +108,7 @@ All config is driven by environment variables. Copy `.env.example` to `.env`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `BRAND_QUERIES` | `yeet casino,yeet.com,yeetcasino` | Comma-separated search queries |
+| `BRAND_QUERIES` | `y_eet casino,y_eet.com,y_eetcasino` | Comma-separated search queries |
 | `SCRAPER_ENABLED_PLATFORMS` | `reddit,twitter` | Active scrapers |
 | `SCRAPER_MAX_POSTS_PER_RUN` | `100` | Max posts per query per run |
 | `SCRAPER_RATE_LIMIT_DELAY_S` | `2.0` | Seconds between page fetches |
@@ -209,13 +209,13 @@ Critical for "Yeet" — a highly ambiguous term.
 Input text
     │
     ├─ Hard exclusion match?  →  score=0.0, IRRELEVANT
-    │  (yeet baby, yeet meme, yeet fortnite, ...)
+    │  (y_eet baby, y_eet meme, y_eet fortnite, ...)
     │
     ├─ Primary keyword match? →  score≥0.85, RELEVANT
-    │  (yeet casino, yeetcasino, yeet.com casino, ...)
+    │  (y_eet casino, y_eetcasino, y_eet.com casino, ...)
     │
     ├─ Secondary + context?   →  score≥0.55, RELEVANT
-    │  (yeet + casino/slots/deposit/withdrawal/bonus/...)
+    │  (y_eet + casino/slots/deposit/withdrawal/bonus/...)
     │
     ├─ Secondary only?        →  score≤0.35
     │  └─ Embedding gate enabled?  →  cosine sim ≥ 0.6 → RELEVANT
@@ -311,7 +311,7 @@ cd social-sentiment
 pip install pytest pytest-asyncio pytest-cov PyYAML prometheus-client \
     opentelemetry-api opentelemetry-sdk opentelemetry-semantic-conventions pandas
 
-PYTHONPATH=. OTEL_ENABLED=false SCRAPER_ENABLED_PLATFORMS=reddit BRAND_QUERIES="yeet casino" \
+PYTHONPATH=. OTEL_ENABLED=false SCRAPER_ENABLED_PLATFORMS=reddit BRAND_QUERIES="y_eet casino" \
   pytest tests/ -v --ignore=tests/test_scraper_parser.py
 ```
 
@@ -325,7 +325,7 @@ PYTHONPATH=. pytest tests/test_scraper_parser.py -v
 With coverage (≥ 70% gate):
 
 ```bash
-PYTHONPATH=. OTEL_ENABLED=false SCRAPER_ENABLED_PLATFORMS=reddit BRAND_QUERIES="yeet casino" \
+PYTHONPATH=. OTEL_ENABLED=false SCRAPER_ENABLED_PLATFORMS=reddit BRAND_QUERIES="y_eet casino" \
   pytest tests/ --cov=. --cov-report=term --cov-fail-under=70
 ```
 
@@ -335,7 +335,7 @@ Note: Sentiment model tests are excluded from CI (model is ~500MB). To run manua
 PYTHONPATH=. python3 -c "
 from nlp.sentiment import SentimentClassifier
 c = SentimentClassifier.get(); c.load()
-print(c.classify('yeet casino is amazing, fast payouts!'))
+print(c.classify('y_eet casino is amazing, fast payouts!'))
 "
 ```
 

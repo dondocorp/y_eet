@@ -5,7 +5,7 @@
 # Usage:
 #   python main.py mesh --config config/mesh.yaml --validate-all
 
-base_url: "${SYNTH_BASE_URL:-http://api.yeet.internal}"
+base_url: "${SYNTH_BASE_URL:-http://api.y_eet.internal}"
 environment: "staging"
 
 token_pool_size: 10

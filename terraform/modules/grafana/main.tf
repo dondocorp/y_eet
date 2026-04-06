@@ -155,7 +155,7 @@ resource "helm_release" "grafana" {
 variable "grafana_version" { default = "7.3.11" }
 variable "environment"     {}
 variable "admin_password"  { sensitive = true }
-variable "domain"          { default = "yeet.internal" }
+variable "domain"          { default = "y_eet.internal" }
 variable "oauth_client_id"     { default = "" }
 variable "oauth_client_secret" { sensitive = true; default = "" }
 variable "oauth_auth_url"      { default = "" }

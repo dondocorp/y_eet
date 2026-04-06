@@ -40,7 +40,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"player1@yeet.com\",\n  \"password\": \"Password123!\"\n}"
+              "raw": "{\n  \"email\": \"player1@y_eet.com\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": "{{baseUrl}}/api/v1/auth/token",
             "description": "Seed user — password is Password123! — runs migrations/002_seed.sql on first boot"
@@ -69,7 +69,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@yeet.com\",\n  \"password\": \"Password123!\"\n}"
+              "raw": "{\n  \"email\": \"admin@y_eet.com\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": "{{baseUrl}}/api/v1/auth/token",
             "description": "Admin seed user — has admin role, needed for /bets/:id/void, /bets/:id/settle, PUT /config/flags"
@@ -83,7 +83,7 @@
               "script": {
                 "exec": [
                   "const ts = Date.now();",
-                  "const email = `testuser_${ts}@yeet.com`;",
+                  "const email = `testuser_${ts}@y_eet.com`;",
                   "const username = `testuser_${ts}`;",
                   "pm.collectionVariables.set('registeredEmail', email);",
                   "pm.variables.set('newEmail', email);",

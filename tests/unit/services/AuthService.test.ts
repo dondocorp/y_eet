@@ -65,7 +65,7 @@ describe('AuthService', () => {
       userRepo.findByEmail.mockResolvedValue({ ...user, passwordHash: hash });
       riskRepo.getProfile.mockResolvedValue(makeRiskProfile());
 
-      const result = await service.login('player1@yeet.com', 'Password123!');
+      const result = await service.login('player1@y_eet.com', 'Password123!');
 
       expect(result.accessToken).toBe('signed-token');
       expect(result.sessionId).toBeTruthy();
@@ -75,34 +75,34 @@ describe('AuthService', () => {
     it('throws UnauthorizedError when user is not found', async () => {
       userRepo.findByEmail.mockResolvedValue(null);
 
-      await expect(service.login('unknown@yeet.com', 'any')).rejects.toThrow(UnauthorizedError);
+      await expect(service.login('unknown@y_eet.com', 'any')).rejects.toThrow(UnauthorizedError);
     });
 
     it('throws UnauthorizedError when password is wrong', async () => {
       const hash = await bcrypt.hash('correctPassword', 1);
       userRepo.findByEmail.mockResolvedValue(makeUser({ passwordHash: hash }));
 
-      await expect(service.login('player1@yeet.com', 'wrongPassword')).rejects.toThrow(UnauthorizedError);
+      await expect(service.login('player1@y_eet.com', 'wrongPassword')).rejects.toThrow(UnauthorizedError);
     });
 
     it('throws UserSuspendedError when account is suspended', async () => {
       const hash = await bcrypt.hash('Password123!', 1);
       userRepo.findByEmail.mockResolvedValue(makeUser({ status: 'suspended', passwordHash: hash }));
 
-      await expect(service.login('player1@yeet.com', 'Password123!')).rejects.toThrow(UserSuspendedError);
+      await expect(service.login('player1@y_eet.com', 'Password123!')).rejects.toThrow(UserSuspendedError);
     });
 
     it('throws UserSuspendedError when account is self-excluded', async () => {
       const hash = await bcrypt.hash('Password123!', 1);
       userRepo.findByEmail.mockResolvedValue(makeUser({ status: 'self_excluded', passwordHash: hash }));
 
-      await expect(service.login('player1@yeet.com', 'Password123!')).rejects.toThrow(UserSuspendedError);
+      await expect(service.login('player1@y_eet.com', 'Password123!')).rejects.toThrow(UserSuspendedError);
     });
 
     it('obscures reason — user-not-found throws same error as wrong password', async () => {
       userRepo.findByEmail.mockResolvedValue(null);
 
-      const notFound = service.login('nobody@yeet.com', 'x');
+      const notFound = service.login('nobody@y_eet.com', 'x');
       await expect(notFound).rejects.toThrow('Invalid credentials');
     });
   });
@@ -118,13 +118,13 @@ describe('AuthService', () => {
       riskRepo.getProfile.mockResolvedValue(makeRiskProfile());
 
       const result = await service.register({
-        email:    'new@yeet.com',
+        email:    'new@y_eet.com',
         username: 'newuser',
         password: 'Password123!',
       });
 
       expect(userRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'new@yeet.com', username: 'newuser' }),
+        expect.objectContaining({ email: 'new@y_eet.com', username: 'newuser' }),
       );
       expect(walletRepo.create).toHaveBeenCalledWith(user.userId);
       expect(riskRepo.upsertProfile).toHaveBeenCalledWith(

@@ -8,7 +8,7 @@
 #   • OpenTelemetry Collector → Prometheus → Grafana + Loki + Tempo
 #   • Alertmanager + Blackbox Exporter
 #   • Social Sentiment pipeline + Streamlit analyst dashboard
-#   • yeet-synth synthetic traffic generator
+#   • y_eet-synth synthetic traffic generator
 #
 # Usage:
 #   ./scripts/demo.sh [--skip-synth] [--skip-browser] [--rebuild]
@@ -128,14 +128,14 @@ else
   warn "No browser-open utility — URLs will be printed instead"
 fi
 
-# yeet-synth availability
+# y_eet-synth availability
 SYNTH_AVAILABLE=false
 if [[ "$SKIP_SYNTH" == "false" ]]; then
-  if [[ -d "$REPO_ROOT/yeet-synth/.venv" ]]; then
+  if [[ -d "$REPO_ROOT/y_eet-synth/.venv" ]]; then
     SYNTH_AVAILABLE=true
-    ok "yeet-synth venv found"
+    ok "y_eet-synth venv found"
   elif command -v python3 &>/dev/null; then
-    warn "yeet-synth venv not set up (cd yeet-synth && make install)"
+    warn "y_eet-synth venv not set up (cd y_eet-synth && make install)"
     warn "Starting without synthetic traffic — pass --skip-synth to suppress"
     SKIP_SYNTH=true
   fi
@@ -235,17 +235,17 @@ SYNTH_PID=""
 
 if [[ "$SKIP_SYNTH" == "false" && "$SYNTH_AVAILABLE" == "true" ]]; then
   phase "Synthetic traffic"
-  cd "$REPO_ROOT/yeet-synth"
+  cd "$REPO_ROOT/y_eet-synth"
   SYNTH_BASE_URL="$API_URL" .venv/bin/python main.py run \
     --profile normal \
     --duration 600 \
     --base-url "$API_URL" \
-    --json-report /tmp/yeet-synth-report.json \
-    &>/tmp/yeet-synth.log &
+    --json-report /tmp/y_eet-synth-report.json \
+    &>/tmp/y_eet-synth.log &
   SYNTH_PID=$!
   cd "$REPO_ROOT"
-  ok "yeet-synth running  (PID $SYNTH_PID)"
-  info "Profile: normal · Duration: 10 min · Log: /tmp/yeet-synth.log"
+  ok "y_eet-synth running  (PID $SYNTH_PID)"
+  info "Profile: normal · Duration: 10 min · Log: /tmp/y_eet-synth.log"
   phase_done
 fi
 
@@ -299,9 +299,9 @@ echo -e "    Streamlit analyst UI   ${CYN}$SENTIMENT_DASHBOARD_URL${RST}"
 echo ""
 
 if [[ -n "$SYNTH_PID" ]]; then
-  echo -e "  ${BLD}Synthetic traffic${RST}      ${GRN}active${RST}  ${DIM}(PID $SYNTH_PID · log: /tmp/yeet-synth.log)${RST}"
+  echo -e "  ${BLD}Synthetic traffic${RST}      ${GRN}active${RST}  ${DIM}(PID $SYNTH_PID · log: /tmp/y_eet-synth.log)${RST}"
 else
-  echo -e "  ${BLD}Synthetic traffic${RST}      ${DIM}not running  (run: cd yeet-synth && make install)${RST}"
+  echo -e "  ${BLD}Synthetic traffic${RST}      ${DIM}not running  (run: cd y_eet-synth && make install)${RST}"
 fi
 
 echo ""
@@ -309,7 +309,7 @@ echo -e "  ${DIM}What to watch:${RST}"
 echo -e "  ${DIM}· Grafana → API Reliability: request rate, error rate, P99 latency${RST}"
 echo -e "  ${DIM}· Grafana → SLO Error Budget: burn rate for bet placement + auth${RST}"
 echo -e "  ${DIM}· Grafana → Brand Intel: sentiment signals, mention volume, alerts${RST}"
-echo -e "  ${DIM}· Prometheus Explore: query social_* and yeet_* metrics directly${RST}"
+echo -e "  ${DIM}· Prometheus Explore: query social_* and y_eet_* metrics directly${RST}"
 echo ""
 divider
 echo ""
@@ -320,7 +320,7 @@ cleanup() {
   phase "Shutting down"
   [[ -n "$SYNTH_PID" ]] && kill "$SYNTH_PID" 2>/dev/null || true
   info "Docker services left running — stop with: docker compose down"
-  [[ -n "$SYNTH_PID" ]] && info "Synth report: /tmp/yeet-synth-report.json"
+  [[ -n "$SYNTH_PID" ]] && info "Synth report: /tmp/y_eet-synth-report.json"
   echo ""
 }
 trap cleanup INT TERM
@@ -329,7 +329,7 @@ if [[ -n "$SYNTH_PID" ]]; then
   echo -e "  ${CYN}${BLD}Traffic is flowing.${RST}  ${DIM}Ctrl+C to stop synthetic traffic and exit.${RST}"
   echo ""
   wait "$SYNTH_PID" 2>/dev/null || true
-  ok "Synthetic traffic run complete  →  /tmp/yeet-synth-report.json"
+  ok "Synthetic traffic run complete  →  /tmp/y_eet-synth-report.json"
 else
   echo -e "  ${CYN}${BLD}Stack is running.${RST}  ${DIM}Ctrl+C to exit (Docker services stay up).${RST}"
   echo ""

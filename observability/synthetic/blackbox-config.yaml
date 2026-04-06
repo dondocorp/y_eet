@@ -50,8 +50,8 @@ additional_scrape_configs:
       module: [http_health]
     static_configs:
       - targets:
-          - http://yeet-platform-api.default.svc.cluster.local:8080/health/live
-          - http://yeet-platform-api.default.svc.cluster.local:8080/health/ready
+          - http://y_eet-platform-api.default.svc.cluster.local:8080/health/live
+          - http://y_eet-platform-api.default.svc.cluster.local:8080/health/ready
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
@@ -67,8 +67,8 @@ additional_scrape_configs:
     static_configs:
       - targets:
           # Public API smoke probes
-          - https://api.yeet.com/health/live
-          - https://api.yeet.com/health/ready
+          - https://api.y_eet.com/health/live
+          - https://api.y_eet.com/health/ready
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

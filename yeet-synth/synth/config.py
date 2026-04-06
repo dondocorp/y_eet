@@ -74,7 +74,7 @@ class Config:
     internal_base_url: str = "http://localhost:8080"
 
     # Identity
-    service_name: str = "yeet-synth"
+    service_name: str = "y_eet-synth"
     environment: str = "local"
 
     # Observability

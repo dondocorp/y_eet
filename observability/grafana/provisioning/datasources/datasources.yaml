@@ -67,7 +67,7 @@ datasources:
           - name: "Request rate"
             query: 'sum(rate(istio_requests_total{destination_service_name="${__span.tags["service.name"]}"}[5m]))'
           - name: "P99 latency"
-            query: 'histogram_quantile(0.99, sum(rate(yeet_http_request_duration_ms_bucket{route="${__span.tags["http.route"]}"}[5m])) by (le))'
+            query: 'histogram_quantile(0.99, sum(rate(y_eet_http_request_duration_ms_bucket{route="${__span.tags["http.route"]}"}[5m])) by (le))'
       serviceMap:
         datasourceUid: prometheus
       nodeGraph:

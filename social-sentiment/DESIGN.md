@@ -84,7 +84,7 @@
 [cron / scheduler every 30m]
          │
          ▼
-1. scraper.reddit.scrape("yeet casino", max=100)
+1. scraper.reddit.scrape("y_eet casino", max=100)
    └─▶ HTTP GET reddit.com/search.json (no auth)
    └─▶ yield RawPost(post_id, text, author, score, ...)
          │
@@ -180,7 +180,7 @@ Tempo trace search:
 ### Day 1 — MVP
 1. `docker-compose up social-sentiment` — confirm service starts
 2. `python scripts/init_db.py` — verify DB schema
-3. Set `BRAND_QUERIES=yeet casino,yeet.com` and `SCRAPER_ENABLED_PLATFORMS=reddit`
+3. Set `BRAND_QUERIES=y_eet casino,y_eet.com` and `SCRAPER_ENABLED_PLATFORMS=reddit`
 4. Run `python -m pipeline.ingest` manually — verify posts in DB
 5. Confirm `:9465/metrics` returns `social_*` metrics
 6. Prometheus scrapes target — confirm in `/targets`
