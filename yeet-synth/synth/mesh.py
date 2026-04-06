@@ -9,21 +9,21 @@ Design philosophy:
   - Pass/fail is driven by observed behaviour vs declared policy.
   - All anomalies surface as annotated RequestRecords in the MetricsCollector.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import statistics
 import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+
+import synth.endpoints as ep
 
 from .client import SynthClient
-from .metrics import MetricsCollector, RequestRecord
+from .metrics import RequestRecord
 from .token_manager import TokenPool
-import synth.endpoints as ep
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class MeshCheckResult:
 
 # ── A. Retry Validation ───────────────────────────────────────────────────────
 
+
 class RetryValidator:
     """
     Validate retry behaviour by inspecting x-envoy-attempt-count.
@@ -55,6 +56,7 @@ class RetryValidator:
     Fail: attempt_count > 1 on a POST /bets/place without idempotency key,
           or average attempt count > threshold (amplification risk).
     """
+
     name = "retry_validation"
 
     async def run(
@@ -70,7 +72,6 @@ class RetryValidator:
             )
 
         token = creds.access_token
-        user_id = creds.user_id
         attempt_counts: list[int] = []
         unsafe_retries: int = 0
 
@@ -91,29 +92,47 @@ class RetryValidator:
 
         avg_attempts = statistics.mean(attempt_counts) if attempt_counts else 1.0
         max_attempts = max(attempt_counts) if attempt_counts else 1
-        retry_amplification_rate = sum(1 for c in attempt_counts if c > 1) / len(attempt_counts)
+        retry_amplification_rate = sum(1 for c in attempt_counts if c > 1) / len(
+            attempt_counts
+        )
 
         if unsafe_retries > 0:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.FAIL,
-                message=f"{unsafe_retries} unsafe retries detected on non-idempotent endpoints",
-                details={"unsafe_retries": unsafe_retries, "avg_attempt_count": avg_attempts},
+                name=self.name,
+                status=CheckStatus.FAIL,
+                message=(
+                    f"{unsafe_retries} unsafe retries detected "
+                    "on non-idempotent endpoints"
+                ),
+                details={
+                    "unsafe_retries": unsafe_retries,
+                    "avg_attempt_count": avg_attempts,
+                },
             )
         if avg_attempts > 1.5:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message=f"High average attempt count ({avg_attempts:.2f}) — possible retry amplification",
-                details={"avg_attempts": avg_attempts, "max_attempts": max_attempts,
-                         "amplification_rate_pct": retry_amplification_rate * 100},
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    f"High average attempt count ({avg_attempts:.2f}) "
+                    "— possible retry amplification"
+                ),
+                details={
+                    "avg_attempts": avg_attempts,
+                    "max_attempts": max_attempts,
+                    "amplification_rate_pct": retry_amplification_rate * 100,
+                },
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
+            name=self.name,
+            status=CheckStatus.PASS,
             message=f"Retry behaviour nominal (avg_attempts={avg_attempts:.2f})",
             details={"avg_attempts": avg_attempts, "max_attempts": max_attempts},
         )
 
 
 # ── B. Timeout Validation ─────────────────────────────────────────────────────
+
 
 class TimeoutValidator:
     """
@@ -126,6 +145,7 @@ class TimeoutValidator:
     If the app returns a 504 before the mesh times out → mismatch.
     If the client sees a connection reset vs a 504 → mesh timeout is firing.
     """
+
     name = "timeout_validation"
 
     async def run(
@@ -135,7 +155,6 @@ class TimeoutValidator:
         probe_delay_ms: int = 0,
     ) -> MeshCheckResult:
         latencies: list[float] = []
-        timeout_codes: list[int] = []
         mesh_timeouts = 0
         app_timeouts = 0
 
@@ -161,24 +180,37 @@ class TimeoutValidator:
 
         if app_timeouts > 0 and mesh_timeouts == 0:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message="App-level 504s observed without mesh-level timeouts — possible mesh timeout not set",
-                details=details, latencies_ms=latencies,
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    "App-level 504s observed without mesh-level timeouts "
+                    "— possible mesh timeout not set"
+                ),
+                details=details,
+                latencies_ms=latencies,
             )
         if mesh_timeouts > 0 and app_timeouts > mesh_timeouts:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message="Both app and mesh timeouts firing — timeout hierarchy may be inverted",
-                details=details, latencies_ms=latencies,
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    "Both app and mesh timeouts firing "
+                    "— timeout hierarchy may be inverted"
+                ),
+                details=details,
+                latencies_ms=latencies,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
+            name=self.name,
+            status=CheckStatus.PASS,
             message=f"Timeout behaviour nominal (p95={p95:.0f}ms p99={p99:.0f}ms)",
-            details=details, latencies_ms=latencies,
+            details=details,
+            latencies_ms=latencies,
         )
 
 
 # ── C. Circuit Breaker / Outlier Detection Validation ─────────────────────────
+
 
 class CircuitBreakerValidator:
     """
@@ -193,6 +225,7 @@ class CircuitBreakerValidator:
     Istio VirtualService FaultInjection. Instead, we flood at high RPS and
     observe whether the mesh applies backpressure (503 upstream overflow).
     """
+
     name = "circuit_breaker_validation"
 
     async def run(
@@ -223,10 +256,7 @@ class CircuitBreakerValidator:
                 name=self.name, status=CheckStatus.SKIP, message="No results collected"
             )
 
-        overloaded = sum(
-            1 for r in results
-            if r.status_code == 503
-        )
+        overloaded = sum(1 for r in results if r.status_code == 503)
         via_istio = sum(1 for r in results if r.via_istio)
         error_rate = sum(1 for r in results if r.status_code >= 500) / total
 
@@ -240,24 +270,37 @@ class CircuitBreakerValidator:
 
         if overloaded > 0:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.PASS,
-                message=f"Circuit breaker / outlier detection active: {overloaded} 503s observed",
+                name=self.name,
+                status=CheckStatus.PASS,
+                message=(
+                    "Circuit breaker / outlier detection active: "
+                    f"{overloaded} 503s observed"
+                ),
                 details=details,
             )
         if error_rate > 0.05:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message=f"High error rate under load ({error_rate:.1%}) — circuit breaker may be absent",
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    f"High error rate under load ({error_rate:.1%}) "
+                    "— circuit breaker may be absent"
+                ),
                 details=details,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
-            message="Service handled flood without circuit breaker intervention (healthy baseline)",
+            name=self.name,
+            status=CheckStatus.PASS,
+            message=(
+                "Service handled flood without circuit breaker "
+                "intervention (healthy baseline)"
+            ),
             details=details,
         )
 
 
 # ── D. Canary / Route Split Validation ───────────────────────────────────────
+
 
 class CanaryValidator:
     """
@@ -266,9 +309,12 @@ class CanaryValidator:
     Sends N requests and measures the distribution of a version identifier
     in the response. Compares observed split against the declared weight.
 
-    Looks for headers: x-canary-version, x-version, x-app-version, x-envoy-upstream-service-time.
-    Also tracks x-envoy-upstream-service-time to detect version performance differences.
+    Looks for headers: x-canary-version, x-version, x-app-version,
+    x-envoy-upstream-service-time.
+    Also tracks x-envoy-upstream-service-time to detect version
+    performance differences.
     """
+
     name = "canary_validation"
 
     async def run(
@@ -307,7 +353,9 @@ class CanaryValidator:
 
         details = {
             "total_requests": total,
-            "version_distribution": {k: round(v / total * 100, 1) for k, v in version_counts.items()},
+            "version_distribution": {
+                k: round(v / total * 100, 1) for k, v in version_counts.items()
+            },
             "expected_canary_weight_pct": expected_weight * 100,
             "observed_canary_weight_pct": round(observed_weight * 100, 2),
             "deviation_pct": round(deviation * 100, 2),
@@ -316,28 +364,41 @@ class CanaryValidator:
         # If no version header is present at all, Istio may not be annotating responses
         if all(v == "stable" for v in version_counts):
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message="No version header found in responses — canary routing may be unconfigured or headers not propagated",
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    "No version header found in responses — canary routing "
+                    "may be unconfigured or headers not propagated"
+                ),
                 details=details,
             )
 
         if deviation > tolerance:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.FAIL,
+                name=self.name,
+                status=CheckStatus.FAIL,
                 message=(
-                    f"Canary split deviation {deviation:.1%} exceeds tolerance {tolerance:.1%} "
-                    f"(observed={observed_weight:.1%}, expected={expected_weight:.1%})"
+                    f"Canary split deviation {deviation:.1%} "
+                    f"exceeds tolerance {tolerance:.1%} "
+                    f"(observed={observed_weight:.1%}, "
+                    f"expected={expected_weight:.1%})"
                 ),
                 details=details,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
-            message=f"Canary split within tolerance (observed={observed_weight:.1%}, expected={expected_weight:.1%})",
+            name=self.name,
+            status=CheckStatus.PASS,
+            message=(
+                f"Canary split within tolerance "
+                f"(observed={observed_weight:.1%}, "
+                f"expected={expected_weight:.1%})"
+            ),
             details=details,
         )
 
 
 # ── E. Fault Injection Validation ─────────────────────────────────────────────
+
 
 class FaultInjectionValidator:
     """
@@ -352,6 +413,7 @@ class FaultInjectionValidator:
     NOTE: This validator requires fault injection to be pre-configured
     in the Istio VirtualService. Run with --mesh-mode=fault.
     """
+
     name = "fault_injection_validation"
 
     async def run(
@@ -380,11 +442,14 @@ class FaultInjectionValidator:
             )
 
         observed_fault_rate = len(fault_codes) / total
-        p95_latency = sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0.0
+        p95_latency = (
+            sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0.0
+        )
         fault_deviation = abs(observed_fault_rate - expected_fault_rate)
 
         details = {
-            "total": total, "fault_responses": len(fault_codes),
+            "total": total,
+            "fault_responses": len(fault_codes),
             "observed_fault_rate_pct": round(observed_fault_rate * 100, 1),
             "expected_fault_rate_pct": round(expected_fault_rate * 100, 1),
             "p95_latency_ms": round(p95_latency, 1),
@@ -393,30 +458,48 @@ class FaultInjectionValidator:
 
         if observed_fault_rate < 0.01 and expected_fault_rate > 0.10:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message="Fault injection may not be active — fault rate far below expectation",
-                details=details, latencies_ms=latencies,
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    "Fault injection may not be active "
+                    "— fault rate far below expectation"
+                ),
+                details=details,
+                latencies_ms=latencies,
             )
         if fault_deviation > 0.15:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message=f"Fault rate deviation {fault_deviation:.1%} — injection policy may have drifted",
-                details=details, latencies_ms=latencies,
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    f"Fault rate deviation {fault_deviation:.1%} "
+                    "— injection policy may have drifted"
+                ),
+                details=details,
+                latencies_ms=latencies,
             )
         if p95_latency < expected_delay_ms * 0.5 and expected_delay_ms > 0:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message=f"Latency p95 ({p95_latency:.0f}ms) lower than expected delay ({expected_delay_ms}ms)",
-                details=details, latencies_ms=latencies,
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    f"Latency p95 ({p95_latency:.0f}ms) lower than "
+                    f"expected delay ({expected_delay_ms}ms)"
+                ),
+                details=details,
+                latencies_ms=latencies,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
+            name=self.name,
+            status=CheckStatus.PASS,
             message="Fault injection behaving within expected parameters",
-            details=details, latencies_ms=latencies,
+            details=details,
+            latencies_ms=latencies,
         )
 
 
 # ── F. mTLS / Policy Path Validation ─────────────────────────────────────────
+
 
 class MTLSValidator:
     """
@@ -429,6 +512,7 @@ class MTLSValidator:
       2. Absence of unexpected 403/connection-refused on internal paths
       3. Whether service-to-service calls (internal URL) are reachable
     """
+
     name = "mtls_validation"
 
     async def run(
@@ -459,30 +543,45 @@ class MTLSValidator:
         details = {
             "total": total,
             "via_istio": mtls_confirmed,
-            "istio_coverage_pct": round(mtls_confirmed / total * 100, 1) if total else 0,
+            "istio_coverage_pct": round(mtls_confirmed / total * 100, 1)
+            if total
+            else 0,
             "policy_failures": policy_failures,
         }
 
         if policy_failures > sample_size * 0.05:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.FAIL,
-                message=f"{policy_failures} policy/auth failures on internal path — check PeerAuthentication policy",
+                name=self.name,
+                status=CheckStatus.FAIL,
+                message=(
+                    f"{policy_failures} policy/auth failures on internal path "
+                    "— check PeerAuthentication policy"
+                ),
                 details=details,
             )
         if mtls_confirmed == 0:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
-                message="No Istio sidecar detected in responses — service may not be in mesh or sidecar injection is disabled",
+                name=self.name,
+                status=CheckStatus.WARN,
+                message=(
+                    "No Istio sidecar detected in responses — service may "
+                    "not be in mesh or sidecar injection is disabled"
+                ),
                 details=details,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
-            message=f"mTLS path healthy ({mtls_confirmed}/{total} requests via Istio sidecar)",
+            name=self.name,
+            status=CheckStatus.PASS,
+            message=(
+                f"mTLS path healthy "
+                f"({mtls_confirmed}/{total} requests via Istio sidecar)"
+            ),
             details=details,
         )
 
 
 # ── G. Ingress / Egress Validation ────────────────────────────────────────────
+
 
 class IngressValidator:
     """
@@ -491,6 +590,7 @@ class IngressValidator:
       - Host-based routing returns expected responses
       - Unexpected 404/503 on base paths indicates misconfigured VirtualService
     """
+
     name = "ingress_validation"
 
     async def run(
@@ -521,24 +621,31 @@ class IngressValidator:
 
         if routing_failures:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.FAIL,
-                message=f"{len(routing_failures)} endpoints returned 404 — VirtualService routing may be misconfigured",
+                name=self.name,
+                status=CheckStatus.FAIL,
+                message=(
+                    f"{len(routing_failures)} endpoints returned 404 "
+                    "— VirtualService routing may be misconfigured"
+                ),
                 details=details,
             )
         if failures:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
+                name=self.name,
+                status=CheckStatus.WARN,
                 message=f"{len(failures)} unexpected status codes on ingress paths",
                 details=details,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
+            name=self.name,
+            status=CheckStatus.PASS,
             message="Ingress routing checks passed",
             details=details,
         )
 
 
 # ── H. Trace Propagation Validation ──────────────────────────────────────────
+
 
 class TracePropagationValidator:
     """
@@ -550,6 +657,7 @@ class TracePropagationValidator:
       2. Whether trace IDs are consistent across a multi-hop flow
       3. Flag broken stitching (new trace started mid-flow)
     """
+
     name = "trace_propagation_validation"
 
     async def run(
@@ -588,22 +696,29 @@ class TracePropagationValidator:
 
         if propagation_rate < 0.50:
             return MeshCheckResult(
-                name=self.name, status=CheckStatus.WARN,
+                name=self.name,
+                status=CheckStatus.WARN,
                 message=(
                     f"Low trace propagation rate ({propagation_rate:.0%}) — "
                     "server may not be echoing trace headers. "
-                    "Verify OTel instrumentation and Istio EnvoyFilter trace configuration."
+                    "Verify OTel instrumentation and Istio EnvoyFilter "
+                    "trace configuration."
                 ),
                 details=details,
             )
         return MeshCheckResult(
-            name=self.name, status=CheckStatus.PASS,
-            message=f"Trace propagation nominal ({propagation_rate:.0%} of spans carry traceparent)",
+            name=self.name,
+            status=CheckStatus.PASS,
+            message=(
+                f"Trace propagation nominal "
+                f"({propagation_rate:.0%} of spans carry traceparent)"
+            ),
             details=details,
         )
 
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
+
 
 class IstioValidator:
     """
@@ -619,7 +734,11 @@ class IstioValidator:
         pool: TokenPool,
     ) -> list[MeshCheckResult]:
         mesh_cfg = self._cfg.mesh
-        validators: list = [IngressValidator(), TracePropagationValidator(), MTLSValidator()]
+        validators: list = [
+            IngressValidator(),
+            TracePropagationValidator(),
+            MTLSValidator(),
+        ]
 
         if mesh_cfg.validate_retries:
             validators.append(RetryValidator())
@@ -641,8 +760,11 @@ class IstioValidator:
                 logger.info("  %s → %s: %s", v.name, r.status.value, r.message)
             except Exception as exc:
                 logger.warning("Mesh validator %s raised: %s", v.name, exc)
-                results.append(MeshCheckResult(
-                    name=v.name, status=CheckStatus.WARN,
-                    message=f"Validator raised exception: {exc}",
-                ))
+                results.append(
+                    MeshCheckResult(
+                        name=v.name,
+                        status=CheckStatus.WARN,
+                        message=f"Validator raised exception: {exc}",
+                    )
+                )
         return results

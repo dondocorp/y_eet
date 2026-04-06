@@ -121,6 +121,11 @@ export const httpRequestsTotal = meter.createCounter('yeet_http_requests_total',
   description: 'Total HTTP requests by method, route, status, and synthetic flag',
 });
 
+// ─── Config metrics ───────────────────────────────────────────────────────────
+export const configFlagReadsTotal = meter.createCounter('yeet_config_flag_reads_total', {
+  description: 'Total feature flag reads by cache hit/miss',
+});
+
 // ─── Observability pipeline self-health ───────────────────────────────────────
 export const syntheticChecksTotal = meter.createCounter('yeet_synthetic_checks_total', {
   description: 'Synthetic check executions by check name and result',

@@ -1,14 +1,22 @@
-# social-sentiment
+# Social Sentiment — Brand Intelligence Pipeline
 
-> Brand intelligence and social media sentiment pipeline for Yeet Casino. Scrapes public social content, classifies brand relevance and sentiment, aggregates hourly trends, fires alerts, and exposes metrics into the central Grafana observability portal.
+> Scrapes Reddit and Twitter for brand mentions, classifies relevance and sentiment, aggregates hourly trends, fires alerts, and surfaces signals into the Yeet Grafana observability portal as a dedicated Brand Intelligence domain.
 
 ---
 
-## What this is
+## Overview
 
-A self-contained Python subsystem that runs on a 30-minute cron schedule. It scrapes Reddit and Twitter for mentions of Yeet Casino, filters out noise, runs sentiment classification, rolls up hourly statistics, and routes alerts through Telegram and Alertmanager. All metrics flow into the existing Prometheus + Grafana stack as a new **Brand Intelligence** domain.
+A self-contained Python subsystem that runs on a 30-minute cron schedule. It is not a standalone dashboard toy — it is wired into the same observability stack (Prometheus, Grafana, OTEL Collector, Loki, Alertmanager) as the rest of the platform.
 
-This is not a standalone dashboard toy. It is wired into the same observability stack as the rest of the platform.
+| Layer | What it does |
+|---|---|
+| **Scrapers** | Playwright-based Reddit + Twitter crawlers — no API keys required |
+| **Relevance filtering** | 5-stage keyword pipeline tuned for an ambiguous brand name ("Yeet") |
+| **Sentiment classification** | `cardiffnlp/twitter-roberta-base-sentiment-latest` — 3-class, CPU-only, ~500MB |
+| **Aggregation** | Hourly rollup: mention counts, sentiment ratios, influence-weighted score, label frequency |
+| **Alerting** | 7 alert rules, dual-path via Telegram + Alertmanager, suppression + dedup built in |
+| **Metrics** | 13 Prometheus metrics on `:9465/metrics`, scraped by existing Prometheus |
+| **Analyst UI** | Streamlit on `:8501` — post explorer, top negatives, complaint clusters |
 
 ---
 
@@ -28,9 +36,9 @@ This is not a standalone dashboard toy. It is wired into the same observability 
         ▼
   Relevance Classifier  — keyword rules + optional embedding gate
   ├── Hard exclusions  (yeet baby, yeet meme, ...)
-  ├── Primary match    (yeet casino, yeetcasino, ...) → score ≥ 0.85
-  ├── Secondary + context  (yeet + casino/gambling/deposit/...) → score ≥ 0.55
-  └── Derived labels   (scam_concern, payment_issue, ux_praise, hype, ...)
+  ├── Primary match    (yeet casino, yeetcasino, ...)   → score ≥ 0.85
+  ├── Secondary + context  (yeet + casino/gambling/…)   → score ≥ 0.55
+  └── Derived labels   (scam_concern, payment_issue, ux_praise, hype, …)
         │ relevant posts only
         ▼
   Sentiment Classifier  — cardiffnlp/twitter-roberta-base-sentiment-latest
@@ -44,7 +52,7 @@ This is not a standalone dashboard toy. It is wired into the same observability 
         │
         ├──▶  Alert Evaluator      — threshold checks → Telegram + Alertmanager
         │
-        └──▶  Prometheus /metrics  — social_* metrics scraped by existing Prometheus
+        └──▶  Prometheus /metrics  — social_* metrics scraped by Prometheus
                                      → Grafana Brand Intelligence dashboards
 ```
 
@@ -56,11 +64,11 @@ This is not a standalone dashboard toy. It is wired into the same observability 
 |---|---|---|
 | Scraper | Playwright async (Chromium) | No API keys required |
 | Persistence | SQLite WAL | Zero infra, file-backed, 90-day raw retention |
-| Relevance | Keyword heuristics + optional sentence-transformers | Deterministic by default, embedding gate opt-in |
-| Sentiment model | `cardiffnlp/twitter-roberta-base-sentiment-latest` | 124M tweet fine-tune, 3-class, ~500MB, CPU-only |
+| Relevance | Keyword heuristics + optional sentence-transformers | Deterministic by default |
+| Sentiment model | `cardiffnlp/twitter-roberta-base-sentiment-latest` | 124M params, CPU-only, ~500MB |
 | Metrics | `prometheus-client` HTTP server on `:9465` | Scraped by existing Prometheus |
-| Alerting | Telegram primary + Alertmanager secondary | Dual-path; Alertmanager integrates existing on-call routing |
-| Tracing | OpenTelemetry SDK → existing OTEL Collector | Traces appear in Tempo under `service.name=social-sentiment` |
+| Alerting | Telegram primary + Alertmanager secondary | Dual-path; integrates existing on-call routing |
+| Tracing | OpenTelemetry SDK → OTEL Collector | Visible in Tempo under `service.name=social-sentiment` |
 | Logging | JSON stdout → OTEL Collector → Loki | Query: `{service_name="social-sentiment"}` |
 | Dashboard | Streamlit on `:8501` | Analyst/exploratory UI; ops view is Grafana |
 | Scheduler | Python `schedule` library (in-process) | No cron daemon needed in Docker |
@@ -72,7 +80,7 @@ This is not a standalone dashboard toy. It is wired into the same observability 
 ```bash
 # Copy and configure
 cp .env.example .env
-# Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID at minimum
+# At minimum: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
 
 # Start via docker-compose (from repo root)
 docker compose up social-sentiment social-sentiment-dashboard
@@ -81,8 +89,8 @@ docker compose up social-sentiment social-sentiment-dashboard
 pip install -r requirements.txt
 playwright install chromium
 python scripts/init_db.py
-python -m pipeline.ingest          # single run
-python scripts/scheduler.py        # continuous scheduler
+python -m pipeline.ingest      # single run
+python scripts/scheduler.py    # continuous scheduler
 ```
 
 | Endpoint | URL |
@@ -142,7 +150,7 @@ social-sentiment/
 │   └── sender.py           Telegram MarkdownV2 sender + Alertmanager /api/v2/alerts push
 │
 ├── metrics/
-│   └── exporter.py         12 Prometheus metrics, lightweight HTTPServer on :9465
+│   └── exporter.py         13 Prometheus metrics, lightweight HTTPServer on :9465
 │
 ├── observability/
 │   ├── tracer.py           OTEL TracerProvider → existing collector
@@ -175,7 +183,7 @@ social-sentiment/
 
 ## Data Model
 
-Seven SQLite tables:
+Seven SQLite tables, WAL mode enabled:
 
 | Table | Purpose | Retention |
 |---|---|---|
@@ -184,10 +192,12 @@ Seven SQLite tables:
 | `normalized_posts` | Cleaned, deduplicated posts | 90 days |
 | `classifier_runs` | Classifier batch metadata | Permanent |
 | `sentiment_results` | Relevance + sentiment scores + derived labels per post | 90 days |
-| `hourly_aggregates` | Rolled-up stats per hour/platform/brand | Permanent |
+| `hourly_aggregates` | Rolled-up stats per hour / platform / brand | Permanent |
 | `alert_events` | Fired alerts with dedup key, payload, send status | 30 days |
 
 Deduplication is enforced at the DB level via `UNIQUE(platform, post_id)` on `raw_posts` and `sentiment_results`.
+
+> **SQLite datetime note:** All datetime comparisons use `datetime('now', '-N days')` string comparison against ISO-8601 stored strings. The schema stores `created_at` as text in `YYYY-MM-DD HH:MM:SS` format — this is intentional and consistent throughout the access layer.
 
 ---
 
@@ -261,7 +271,7 @@ All metrics are prefixed `social_` and exposed on `:9465/metrics`.
 
 ## Grafana Integration
 
-Three dashboards provisioned automatically into the **Brand Intelligence** folder:
+Three dashboards auto-provisioned into the **Brand Intelligence** folder:
 
 | Dashboard | Audience | Refresh |
 |---|---|---|
@@ -269,13 +279,13 @@ Three dashboards provisioned automatically into the **Brand Intelligence** folde
 | Operations View | On-call, SRE | 1m |
 | Pipeline Health | Data Eng, SRE | 30s |
 
-**Executive View** — KPI stats (mentions, positive %, negative %, active alerts), 24h mention volume bar chart, sentiment ratio area chart, weighted sentiment trend, 24h pie chart, 7d alert history.
+**Executive View** — KPI stats (mentions, positive %, negative %, active alerts), 24h mention volume bar chart, sentiment ratio area chart, weighted sentiment trend, 7d alert history.
 
-**Operations View** — Active alert list, scraper success rate, real-time negative ratio with threshold lines (40% warning / 65% critical), scraper run/failure rates, pipeline duration p50/p99, live Loki log panel.
+**Operations View** — Active alert list, scraper success rate, real-time negative ratio with threshold lines (40% warning / 65% critical), pipeline duration p50/p99, live Loki log panel.
 
-**Pipeline Health** — Service up/down indicator, pipeline last-run age, classifier failure rate table, relevance confidence distribution, collected vs relevant post rates, scrape run status table, Tempo trace viewer.
+**Pipeline Health** — Service up/down indicator, pipeline last-run age, classifier failure rate table, relevance confidence distribution, collected vs relevant post rates, Tempo trace viewer.
 
-All dashboards cross-link to Loki logs via `{service_name="social-sentiment"}` and to Tempo via `service.name=social-sentiment`.
+All dashboards cross-link to Loki (`{service_name="social-sentiment"}`) and Tempo (`service.name=social-sentiment`).
 
 ---
 
@@ -286,7 +296,7 @@ Handled by `.github/workflows/social-sentiment.yml`. Triggers on any change to `
 | Stage | Jobs |
 |---|---|
 | Lint | `ruff`, dashboard JSON validation, Prometheus rule YAML validation |
-| Test | Matrix across all 6 test suites, coverage gate (≥70%) |
+| Test | Matrix across all 6 test suites, coverage gate (≥ 70%) |
 | Validate | Metrics contract, DB schema, keyword config |
 | Smoke | Relevance classifier end-to-end, DB init idempotency |
 | Build | Docker multi-stage build → push to GHCR |
@@ -301,11 +311,25 @@ cd social-sentiment
 pip install pytest pytest-asyncio pytest-cov PyYAML prometheus-client \
     opentelemetry-api opentelemetry-sdk opentelemetry-semantic-conventions pandas
 
-PYTHONPATH=. pytest tests/ -v
-PYTHONPATH=. pytest tests/ --cov=. --cov-report=term --cov-fail-under=70
+PYTHONPATH=. OTEL_ENABLED=false SCRAPER_ENABLED_PLATFORMS=reddit BRAND_QUERIES="yeet casino" \
+  pytest tests/ -v --ignore=tests/test_scraper_parser.py
 ```
 
-Note: sentiment model tests are excluded from CI (model is ~500MB). Run manually:
+`test_scraper_parser.py` requires `playwright install chromium` (heavy dep). To run it:
+
+```bash
+pip install playwright && playwright install chromium
+PYTHONPATH=. pytest tests/test_scraper_parser.py -v
+```
+
+With coverage (≥ 70% gate):
+
+```bash
+PYTHONPATH=. OTEL_ENABLED=false SCRAPER_ENABLED_PLATFORMS=reddit BRAND_QUERIES="yeet casino" \
+  pytest tests/ --cov=. --cov-report=term --cov-fail-under=70
+```
+
+Note: Sentiment model tests are excluded from CI (model is ~500MB). To run manually:
 
 ```bash
 PYTHONPATH=. python3 -c "
@@ -319,10 +343,10 @@ print(c.classify('yeet casino is amazing, fast payouts!'))
 
 ## Operational Notes
 
-**First run** — Model downloads on first inference (~500MB to `MODEL_CACHE_DIR`). Pre-baked into Docker image at build time to avoid cold-start delay.
+**First run** — The RoBERTa model downloads on first inference (~500MB to `MODEL_CACHE_DIR`). Pre-baked into the Docker image at build time to avoid cold-start delay in production.
 
-**Twitter scraper** — X.com increasingly gates search behind login. If `SCRAPER_ENABLED_PLATFORMS=reddit` is sufficient for volume, drop Twitter from the list. Reddit JSON endpoint is the most stable source.
+**Twitter scraper** — X.com increasingly gates search behind login. If Reddit alone provides sufficient volume, set `SCRAPER_ENABLED_PLATFORMS=reddit`. The Reddit JSON endpoint is the most stable source.
 
-**Noise tuning** — Monitor `social_posts_irrelevant_total / social_posts_collected_total`. If irrelevant ratio exceeds 60%, tighten `exclusion_keywords` or lower `RELEVANCE_EMBEDDING_THRESHOLD`.
+**Noise tuning** — Monitor `social_posts_irrelevant_total / social_posts_collected_total`. If the irrelevant ratio exceeds 60%, tighten `exclusion_keywords` in `config/keywords.yaml` or lower `RELEVANCE_EMBEDDING_THRESHOLD`.
 
-**Retention** — `purge_old_data()` runs daily at 03:00 UTC inside the scheduler. Raw posts and sentiment results are purged after 90 days; alert events after 30 days. Hourly aggregates are kept permanently (tiny rows).
+**Retention** — `purge_old_data()` runs daily at 03:00 UTC inside the scheduler. Raw posts and sentiment results purge after 90 days; alert events after 30 days. Hourly aggregates are kept permanently (tiny rows, never purged).

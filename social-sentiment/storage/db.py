@@ -2,6 +2,7 @@
 SQLite access layer for the social sentiment subsystem.
 Intentionally lightweight — no ORM. Direct sqlite3 with typed helpers.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,7 +25,9 @@ def new_run_id() -> str:
     return str(uuid.uuid4())
 
 
-def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
+def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
+    if db_path is None:
+        db_path = DB_PATH
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -35,7 +38,11 @@ def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
 
 
 @contextmanager
-def transaction(db_path: Path = DB_PATH) -> Generator[sqlite3.Connection, None, None]:
+def transaction(
+    db_path: Path | None = None,
+) -> Generator[sqlite3.Connection, None, None]:
+    if db_path is None:
+        db_path = DB_PATH
     conn = get_connection(db_path)
     try:
         yield conn
@@ -47,13 +54,16 @@ def transaction(db_path: Path = DB_PATH) -> Generator[sqlite3.Connection, None, 
         conn.close()
 
 
-def init_db(db_path: Path = DB_PATH) -> None:
+def init_db(db_path: Path | None = None) -> None:
+    if db_path is None:
+        db_path = DB_PATH
     schema = SCHEMA_PATH.read_text()
     with transaction(db_path) as conn:
         conn.executescript(schema)
 
 
 # ── scrape_runs ─────────────────────────────────────────────────────────────
+
 
 def insert_scrape_run(platform: str, query: str, run_id: str | None = None) -> str:
     rid = run_id or new_run_id()
@@ -85,6 +95,7 @@ def finish_scrape_run(
 
 # ── raw_posts ───────────────────────────────────────────────────────────────
 
+
 def insert_raw_posts(rows: list[dict[str, Any]]) -> int:
     """Bulk-insert raw posts. Returns number of actually inserted rows."""
     if not rows:
@@ -99,12 +110,20 @@ def insert_raw_posts(rows: list[dict[str, Any]]) -> int:
                     replies, upvotes, subreddit, language)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    r["post_id"], r["platform"], r["scrape_run_id"],
-                    r["raw_text"], r.get("author_handle"), r.get("author_followers"),
-                    r.get("post_url"), r.get("posted_at"),
-                    r.get("likes", 0), r.get("reposts", 0),
-                    r.get("replies", 0), r.get("upvotes", 0),
-                    r.get("subreddit"), r.get("language", "en"),
+                    r["post_id"],
+                    r["platform"],
+                    r["scrape_run_id"],
+                    r["raw_text"],
+                    r.get("author_handle"),
+                    r.get("author_followers"),
+                    r.get("post_url"),
+                    r.get("posted_at"),
+                    r.get("likes", 0),
+                    r.get("reposts", 0),
+                    r.get("replies", 0),
+                    r.get("upvotes", 0),
+                    r.get("subreddit"),
+                    r.get("language", "en"),
                 ),
             )
             inserted += cur.rowcount
@@ -115,7 +134,8 @@ def fetch_unprocessed_raw_posts(limit: int = 500) -> list[sqlite3.Row]:
     with transaction() as conn:
         return conn.execute(
             """SELECT rp.* FROM raw_posts rp
-               LEFT JOIN normalized_posts np ON np.platform=rp.platform AND np.post_id=rp.post_id
+               LEFT JOIN normalized_posts np
+                 ON np.platform=rp.platform AND np.post_id=rp.post_id
                WHERE np.id IS NULL
                ORDER BY rp.scraped_at ASC
                LIMIT ?""",
@@ -124,6 +144,7 @@ def fetch_unprocessed_raw_posts(limit: int = 500) -> list[sqlite3.Row]:
 
 
 # ── normalized_posts ────────────────────────────────────────────────────────
+
 
 def insert_normalized_posts(rows: list[dict[str, Any]]) -> int:
     if not rows:
@@ -137,9 +158,14 @@ def insert_normalized_posts(rows: list[dict[str, Any]]) -> int:
                     char_count, word_count, lang_detected, posted_at)
                    VALUES (?,?,?,?,?,?,?,?)""",
                 (
-                    r["raw_post_id"], r["platform"], r["post_id"],
-                    r["clean_text"], r.get("char_count"), r.get("word_count"),
-                    r.get("lang_detected"), r.get("posted_at"),
+                    r["raw_post_id"],
+                    r["platform"],
+                    r["post_id"],
+                    r["clean_text"],
+                    r.get("char_count"),
+                    r.get("word_count"),
+                    r.get("lang_detected"),
+                    r.get("posted_at"),
                 ),
             )
             inserted += cur.rowcount
@@ -150,7 +176,8 @@ def fetch_unclassified_posts(limit: int = 200) -> list[sqlite3.Row]:
     with transaction() as conn:
         return conn.execute(
             """SELECT np.* FROM normalized_posts np
-               LEFT JOIN sentiment_results sr ON sr.platform=np.platform AND sr.post_id=np.post_id
+               LEFT JOIN sentiment_results sr
+                 ON sr.platform=np.platform AND sr.post_id=np.post_id
                WHERE sr.id IS NULL
                ORDER BY np.posted_at ASC
                LIMIT ?""",
@@ -159,6 +186,7 @@ def fetch_unclassified_posts(limit: int = 200) -> list[sqlite3.Row]:
 
 
 # ── sentiment_results ───────────────────────────────────────────────────────
+
 
 def upsert_sentiment_results(rows: list[dict[str, Any]]) -> None:
     if not rows:
@@ -185,12 +213,17 @@ def upsert_sentiment_results(rows: list[dict[str, Any]]) -> None:
                      influence_weight=excluded.influence_weight,
                      classified_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')""",
                 (
-                    r["normalized_post_id"], r["platform"], r["post_id"],
+                    r["normalized_post_id"],
+                    r["platform"],
+                    r["post_id"],
                     r.get("classifier_run_id"),
                     int(r.get("is_relevant", False)),
-                    r.get("relevance_score", 0.0), r.get("relevance_method"),
-                    r.get("sentiment_label"), r.get("sentiment_score"),
-                    r.get("sentiment_raw_pos"), r.get("sentiment_raw_neu"),
+                    r.get("relevance_score", 0.0),
+                    r.get("relevance_method"),
+                    r.get("sentiment_label"),
+                    r.get("sentiment_score"),
+                    r.get("sentiment_raw_pos"),
+                    r.get("sentiment_raw_neu"),
                     r.get("sentiment_raw_neg"),
                     json.dumps(r.get("derived_labels", [])),
                     r.get("influence_weight", 1.0),
@@ -200,6 +233,7 @@ def upsert_sentiment_results(rows: list[dict[str, Any]]) -> None:
 
 
 # ── hourly_aggregates ───────────────────────────────────────────────────────
+
 
 def upsert_hourly_aggregate(row: dict[str, Any]) -> None:
     with transaction() as conn:
@@ -226,13 +260,22 @@ def upsert_hourly_aggregate(row: dict[str, Any]) -> None:
                  avg_influence=excluded.avg_influence,
                  computed_at=excluded.computed_at""",
             (
-                row["hour_bucket"], row["platform"], row["brand_query"],
-                row["total_posts"], row["relevant_posts"],
-                row["positive_count"], row["neutral_count"], row["negative_count"],
-                row.get("avg_sentiment_score"), row.get("weighted_sentiment"),
-                row.get("pos_ratio"), row.get("neu_ratio"), row.get("neg_ratio"),
+                row["hour_bucket"],
+                row["platform"],
+                row["brand_query"],
+                row["total_posts"],
+                row["relevant_posts"],
+                row["positive_count"],
+                row["neutral_count"],
+                row["negative_count"],
+                row.get("avg_sentiment_score"),
+                row.get("weighted_sentiment"),
+                row.get("pos_ratio"),
+                row.get("neu_ratio"),
+                row.get("neg_ratio"),
                 json.dumps(row.get("top_derived_labels", {})),
-                row.get("avg_influence"), row.get("computed_at", utcnow()),
+                row.get("avg_influence"),
+                row.get("computed_at", utcnow()),
             ),
         )
 
@@ -254,6 +297,7 @@ def fetch_hourly_aggregates(
 
 # ── alert_events ────────────────────────────────────────────────────────────
 
+
 def insert_alert_event(row: dict[str, Any]) -> bool:
     """Returns True if inserted (not suppressed/deduped), False if already exists."""
     with transaction() as conn:
@@ -263,10 +307,15 @@ def insert_alert_event(row: dict[str, Any]) -> bool:
                 trigger_value, threshold, message, payload_json, sent_ok)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (
-                row["alert_id"], row["alert_name"], row["severity"],
-                row.get("platform"), row.get("brand_query"),
-                row.get("trigger_value"), row.get("threshold"),
-                row["message"], json.dumps(row.get("payload", {})),
+                row["alert_id"],
+                row["alert_name"],
+                row["severity"],
+                row.get("platform"),
+                row.get("brand_query"),
+                row.get("trigger_value"),
+                row.get("threshold"),
+                row["message"],
+                json.dumps(row.get("payload", {})),
                 int(row.get("sent_ok", False)),
             ),
         )

@@ -5,6 +5,7 @@ Manages a set of pre-seeded synthetic users with auto-refresh.
 All scenarios draw tokens from this pool rather than re-authenticating
 on every request, which mirrors real user session behaviour.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .payloads import register_payload, login_payload
+from .payloads import login_payload, register_payload
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class TokenPool:
     """
 
     def __init__(self, client, pool_size: int = 20, seed_admin: bool = True) -> None:
-        self._client = client          # SynthClient (already entered as context manager)
+        self._client = client  # SynthClient (already entered as context manager)
         self._pool_size = pool_size
         self._seed_admin = seed_admin
         self._users: list[UserCredentials] = []
@@ -73,7 +74,8 @@ class TokenPool:
                 self._users.append(r)
 
         if self._seed_admin:
-            # Admin users must already exist in the DB (seeded by migration 002_seed.sql).
+            # Admin users must already exist in the DB
+            # (seeded by migration 002_seed.sql).
             # We log in with the known seed credentials.
             admin_creds = await self._login_existing(
                 email="admin@yeet.com",
@@ -85,7 +87,8 @@ class TokenPool:
                 logger.info("Admin token acquired")
             else:
                 logger.warning(
-                    "Admin login failed — /_internal and admin-only paths will be skipped"
+                    "Admin login failed — /_internal and admin-only "
+                    "paths will be skipped"
                 )
 
         self._seeded = True
@@ -100,6 +103,7 @@ class TokenPool:
         if not self._users:
             return None
         import random
+
         return random.choice(self._users)
 
     def get_admin(self) -> Optional[UserCredentials]:
@@ -113,7 +117,7 @@ class TokenPool:
             if not creds.needs_refresh:
                 return
             try:
-                record = await self._client.request(
+                await self._client.request(
                     "POST",
                     "/api/v1/auth/refresh",
                     json={"refresh_token": creds.refresh_token},
@@ -121,7 +125,6 @@ class TokenPool:
                 )
                 # We can't access the response body from RequestRecord directly;
                 # use a raw request for token operations
-                import aiohttp
                 async with self._client._session.post(
                     f"{self._client.base_url}/api/v1/auth/refresh",
                     json={"refresh_token": creds.refresh_token},
@@ -163,7 +166,9 @@ class TokenPool:
             logger.debug("Register exception: %s", exc)
             return None
 
-    async def _login_existing(self, email: str, password: str) -> Optional[UserCredentials]:
+    async def _login_existing(
+        self, email: str, password: str
+    ) -> Optional[UserCredentials]:
         try:
             async with self._client._session.post(
                 f"{self._client.base_url}/api/v1/auth/token",

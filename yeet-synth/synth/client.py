@@ -8,6 +8,7 @@ Every call through SynthClient:
   - honours per-request timeout + optional chaos delays
   - propagates OTel span context
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,10 +18,10 @@ import uuid
 from typing import Any, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, ClientSession, ClientTimeout, TCPConnector
+from aiohttp import ClientSession, ClientTimeout, TCPConnector
 
 from .metrics import MetricsCollector, RequestRecord
-from .otel import get_tracer, inject_trace_headers, carrier_from_response_headers
+from .otel import carrier_from_response_headers, get_tracer, inject_trace_headers
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class SynthClient:
         connect_timeout: float = 5.0,
         tls_verify: bool = True,
         x_synthetic: bool = True,
-        extra_chaos_delay_ms: float = 0.0,   # injected by ChaosInjector
+        extra_chaos_delay_ms: float = 0.0,  # injected by ChaosInjector
         max_connections: int = 200,
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -133,7 +134,6 @@ class SynthClient:
             status_code = 0
             timed_out = False
             response_headers: dict[str, str] = {}
-            body: Any = None
 
             try:
                 async with self._session.request(
@@ -146,9 +146,9 @@ class SynthClient:
                     status_code = resp.status
                     response_headers = carrier_from_response_headers(resp.headers)
                     try:
-                        body = await resp.json(content_type=None)
+                        await resp.json(content_type=None)
                     except Exception:
-                        body = await resp.text()
+                        await resp.text()
 
             except asyncio.TimeoutError:
                 timed_out = True
@@ -167,7 +167,9 @@ class SynthClient:
             attempt_count = int(response_headers.get("x-envoy-attempt-count", "1"))
             upstream_ms_raw = response_headers.get("x-envoy-upstream-service-time")
             upstream_ms = float(upstream_ms_raw) if upstream_ms_raw else None
-            via_istio = any(m in response_headers.get("server", "") for m in _ISTIO_SERVER_MARKERS)
+            via_istio = any(
+                m in response_headers.get("server", "") for m in _ISTIO_SERVER_MARKERS
+            )
 
             # Canary version detection — supports multiple common patterns
             canary_version = (
@@ -178,7 +180,9 @@ class SynthClient:
             )
 
             # Idempotency replay detection
-            idempotency_replay = response_headers.get("x-idempotency-replay", "").lower() == "true"
+            idempotency_replay = (
+                response_headers.get("x-idempotency-replay", "").lower() == "true"
+            )
 
             # Trace propagation — check if server echoed any trace headers back
             traceparent_received = "traceparent" in response_headers

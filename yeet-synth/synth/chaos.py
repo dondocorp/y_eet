@@ -12,20 +12,19 @@ All chaos scenarios are designed to be safe in staging:
 WARNING: Do NOT run chaos mode in production without explicit authorisation
 and an active incident response channel open.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
-import random
 import uuid
 from dataclasses import dataclass
-from typing import Optional
+
+import synth.endpoints as ep
 
 from .client import SynthClient
-from .metrics import MetricsCollector
 from .payloads import malformed_bet_payload, malformed_login_payload, stale_token
 from .token_manager import TokenPool
-import synth.endpoints as ep
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,9 @@ class ChaosInjector:
             results += await self._rate_limit_burst()
             results += await self._missing_idempotency_key(creds.access_token)
         else:
-            logger.warning("Chaos: no token available, skipping auth-required scenarios")
+            logger.warning(
+                "Chaos: no token available, skipping auth-required scenarios"
+            )
 
         results += await self._unauthenticated_protected_endpoints()
         return results
@@ -72,14 +73,16 @@ class ChaosInjector:
         """All requests with an expired token must 401."""
         token = stale_token()
         r = await ep.users_profile(self._client, token, user_id)
-        return [ChaosScenarioResult(
-            scenario="stale_token",
-            status_code=r.status_code,
-            expected_status=401,
-            passed=r.status_code == 401,
-            latency_ms=r.latency_ms,
-            note="Expired JWT must be rejected with 401",
-        )]
+        return [
+            ChaosScenarioResult(
+                scenario="stale_token",
+                status_code=r.status_code,
+                expected_status=401,
+                passed=r.status_code == 401,
+                latency_ms=r.latency_ms,
+                note="Expired JWT must be rejected with 401",
+            )
+        ]
 
     # ── 2. Malformed payloads ─────────────────────────────────────────────────
 
@@ -88,76 +91,98 @@ class ChaosInjector:
 
         # Malformed bet
         r = await self._client.request(
-            "POST", "/api/v1/bets/place",
+            "POST",
+            "/api/v1/bets/place",
             token=token,
             idempotency_key=str(uuid.uuid4()),
             json=malformed_bet_payload(),
             endpoint_name="POST /api/v1/bets/place [malformed]",
         )
-        results.append(ChaosScenarioResult(
-            scenario="malformed_bet_payload",
-            status_code=r.status_code,
-            expected_status=400,
-            passed=r.status_code == 400,
-            latency_ms=r.latency_ms,
-            note="Invalid bet payload must return 400 VALIDATION_ERROR",
-        ))
+        results.append(
+            ChaosScenarioResult(
+                scenario="malformed_bet_payload",
+                status_code=r.status_code,
+                expected_status=400,
+                passed=r.status_code == 400,
+                latency_ms=r.latency_ms,
+                note="Invalid bet payload must return 400 VALIDATION_ERROR",
+            )
+        )
 
         # Malformed login
         r = await self._client.request(
-            "POST", "/api/v1/auth/token",
+            "POST",
+            "/api/v1/auth/token",
             json=malformed_login_payload(),
             endpoint_name="POST /api/v1/auth/token [malformed]",
         )
-        results.append(ChaosScenarioResult(
-            scenario="malformed_login_payload",
-            status_code=r.status_code,
-            expected_status=400,
-            passed=r.status_code == 400,
-            latency_ms=r.latency_ms,
-            note="Invalid login payload must return 400",
-        ))
+        results.append(
+            ChaosScenarioResult(
+                scenario="malformed_login_payload",
+                status_code=r.status_code,
+                expected_status=400,
+                passed=r.status_code == 400,
+                latency_ms=r.latency_ms,
+                note="Invalid login payload must return 400",
+            )
+        )
 
         # Oversized body (send 1001 bytes of garbage)
         garbage = {"data": "x" * 1001}
         r = await self._client.request(
-            "POST", "/api/v1/auth/token",
+            "POST",
+            "/api/v1/auth/token",
             json=garbage,
             endpoint_name="POST /api/v1/auth/token [oversized]",
         )
-        results.append(ChaosScenarioResult(
-            scenario="oversized_body",
-            status_code=r.status_code,
-            expected_status=400,
-            passed=r.status_code in (400, 413, 422),
-            latency_ms=r.latency_ms,
-            note="Oversized malformed body should be rejected",
-        ))
+        results.append(
+            ChaosScenarioResult(
+                scenario="oversized_body",
+                status_code=r.status_code,
+                expected_status=400,
+                passed=r.status_code in (400, 413, 422),
+                latency_ms=r.latency_ms,
+                note="Oversized malformed body should be rejected",
+            )
+        )
 
         return results
 
     # ── 3. Idempotency replay ─────────────────────────────────────────────────
 
     async def _duplicate_idempotency_replay(self, creds) -> list[ChaosScenarioResult]:
-        """Send the same request twice with the same idempotency key. Second must replay."""
+        """Send the same request twice with the same idempotency key.
+        Second must replay."""
         key = str(uuid.uuid4())
-        r1 = await ep.wallet_deposit(self._client, creds.access_token, creds.user_id,
-                                      amount="5.00", idempotency_key=key)
+        r1 = await ep.wallet_deposit(
+            self._client,
+            creds.access_token,
+            creds.user_id,
+            amount="5.00",
+            idempotency_key=key,
+        )
         await asyncio.sleep(0.1)
-        r2 = await ep.wallet_deposit(self._client, creds.access_token, creds.user_id,
-                                      amount="5.00", idempotency_key=key)
+        r2 = await ep.wallet_deposit(
+            self._client,
+            creds.access_token,
+            creds.user_id,
+            amount="5.00",
+            idempotency_key=key,
+        )
 
-        return [ChaosScenarioResult(
-            scenario="idempotency_replay",
-            status_code=r2.status_code,
-            expected_status=r1.status_code,
-            passed=r2.idempotency_replay or r2.status_code == r1.status_code,
-            latency_ms=r2.latency_ms,
-            note=(
-                f"Replay detected={r2.idempotency_replay}; "
-                f"first={r1.status_code} second={r2.status_code}"
-            ),
-        )]
+        return [
+            ChaosScenarioResult(
+                scenario="idempotency_replay",
+                status_code=r2.status_code,
+                expected_status=r1.status_code,
+                passed=r2.idempotency_replay or r2.status_code == r1.status_code,
+                latency_ms=r2.latency_ms,
+                note=(
+                    f"Replay detected={r2.idempotency_replay}; "
+                    f"first={r1.status_code} second={r2.status_code}"
+                ),
+            )
+        ]
 
     # ── 4. Rate limit burst ───────────────────────────────────────────────────
 
@@ -166,35 +191,44 @@ class ChaosInjector:
         tasks = [ep.health_live(self._client) for _ in range(120)]
         records = await asyncio.gather(*tasks)
         rate_limited = [r for r in records if r.status_code == 429]
-        return [ChaosScenarioResult(
-            scenario="rate_limit_trigger",
-            status_code=429 if rate_limited else 200,
-            expected_status=429,
-            passed=len(rate_limited) > 0,
-            latency_ms=0.0,
-            note=f"{len(rate_limited)}/120 requests returned 429",
-        )]
+        return [
+            ChaosScenarioResult(
+                scenario="rate_limit_trigger",
+                status_code=429 if rate_limited else 200,
+                expected_status=429,
+                passed=len(rate_limited) > 0,
+                latency_ms=0.0,
+                note=f"{len(rate_limited)}/120 requests returned 429",
+            )
+        ]
 
     # ── 5. Missing idempotency key on guarded endpoint ────────────────────────
 
     async def _missing_idempotency_key(self, token: str) -> list[ChaosScenarioResult]:
         """Omit the Idempotency-Key header on an endpoint that requires it."""
         r = await self._client.request(
-            "POST", "/api/v1/bets/place",
+            "POST",
+            "/api/v1/bets/place",
             token=token,
             # No idempotency_key= argument
-            json={"game_id": "game_crash_v1", "amount": "1.00",
-                  "currency": "USD", "bet_type": "auto_cashout"},
+            json={
+                "game_id": "game_crash_v1",
+                "amount": "1.00",
+                "currency": "USD",
+                "bet_type": "auto_cashout",
+            },
             endpoint_name="POST /api/v1/bets/place [no-idem-key]",
         )
-        return [ChaosScenarioResult(
-            scenario="missing_idempotency_key",
-            status_code=r.status_code,
-            expected_status=400,
-            passed=r.status_code == 400,
-            latency_ms=r.latency_ms,
-            note="Missing Idempotency-Key must return 400 MISSING_IDEMPOTENCY_KEY",
-        )]
+        return [
+            ChaosScenarioResult(
+                scenario="missing_idempotency_key",
+                status_code=r.status_code,
+                expected_status=400,
+                passed=r.status_code == 400,
+                latency_ms=r.latency_ms,
+                note="Missing Idempotency-Key must return 400 MISSING_IDEMPOTENCY_KEY",
+            )
+        ]
 
     # ── 6. Unauthenticated access to protected endpoints ─────────────────────
 
@@ -208,16 +242,19 @@ class ChaosInjector:
         ]
         for path, method in protected:
             r = await self._client.request(
-                method, path,
+                method,
+                path,
                 endpoint_name=f"{method} {path} [no-auth]",
                 # No token
             )
-            results.append(ChaosScenarioResult(
-                scenario=f"unauth_{path.split('/')[-1]}",
-                status_code=r.status_code,
-                expected_status=401,
-                passed=r.status_code in (401, 403),
-                latency_ms=r.latency_ms,
-                note=f"{method} {path} without auth must 401/403",
-            ))
+            results.append(
+                ChaosScenarioResult(
+                    scenario=f"unauth_{path.split('/')[-1]}",
+                    status_code=r.status_code,
+                    expected_status=401,
+                    passed=r.status_code in (401, 403),
+                    latency_ms=r.latency_ms,
+                    note=f"{method} {path} without auth must 401/403",
+                )
+            )
         return results

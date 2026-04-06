@@ -3,10 +3,10 @@ OpenTelemetry SDK setup.
 Must be called once at process start before any other imports that create spans.
 Provides W3C TraceContext + Baggage propagation out of the box.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,45 +23,61 @@ def setup_otel(
     global _tracer, _propagator
 
     from opentelemetry import trace
+    from opentelemetry.baggage.propagation import W3CBaggagePropagator
     from opentelemetry.propagate import set_global_textmap
     from opentelemetry.propagators.composite import CompositePropagator
-    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-    from opentelemetry.baggage.propagation import W3CBaggagePropagator
+    from opentelemetry.trace.propagation.tracecontext import (
+        TraceContextTextMapPropagator,
+    )
 
     # Always set up propagation so we can inject/extract headers
-    _propagator = CompositePropagator([
-        TraceContextTextMapPropagator(),
-        W3CBaggagePropagator(),
-    ])
+    _propagator = CompositePropagator(
+        [
+            TraceContextTextMapPropagator(),
+            W3CBaggagePropagator(),
+        ]
+    )
     set_global_textmap(_propagator)
 
     if not enabled:
         from opentelemetry.sdk.trace import TracerProvider
+
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
         _tracer = trace.get_tracer(service_name)
         return
 
     try:
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.sdk.resources import (
+            DEPLOYMENT_ENVIRONMENT,
+            SERVICE_NAME,
+            Resource,
+        )
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.sdk.resources import Resource, SERVICE_NAME, DEPLOYMENT_ENVIRONMENT
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-        resource = Resource.create({
-            SERVICE_NAME: service_name,
-            DEPLOYMENT_ENVIRONMENT: environment,
-            "synthetic": "true",
-        })
+        resource = Resource.create(
+            {
+                SERVICE_NAME: service_name,
+                DEPLOYMENT_ENVIRONMENT: environment,
+                "synthetic": "true",
+            }
+        )
         provider = TracerProvider(resource=resource)
         exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
         provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(provider)
-        _tracer = trace.get_tracer(service_name, schema_url="https://opentelemetry.io/schemas/1.21.0")
+        _tracer = trace.get_tracer(
+            service_name, schema_url="https://opentelemetry.io/schemas/1.21.0"
+        )
         logger.info("OTel tracing enabled → %s", endpoint)
     except Exception as exc:
         logger.warning("OTel setup failed (%s) — running without tracing", exc)
         from opentelemetry.sdk.trace import TracerProvider
+
         trace.set_tracer_provider(TracerProvider())
         _tracer = trace.get_tracer(service_name)
 
@@ -71,6 +87,7 @@ def get_tracer():
     global _tracer
     if _tracer is None:
         from opentelemetry import trace
+
         _tracer = trace.get_tracer("yeet-synth")
     return _tracer
 
@@ -80,7 +97,6 @@ def inject_trace_headers(carrier: dict[str, str]) -> bool:
     Inject W3C traceparent + tracestate into a headers dict.
     Returns True if a valid span context was injected.
     """
-    from opentelemetry import trace
     from opentelemetry.propagate import inject
 
     inject(carrier)
@@ -90,6 +106,7 @@ def inject_trace_headers(carrier: dict[str, str]) -> bool:
 def extract_trace_context(headers: dict[str, str]):
     """Extract span context from response/request headers."""
     from opentelemetry.propagate import extract
+
     return extract(headers)
 
 

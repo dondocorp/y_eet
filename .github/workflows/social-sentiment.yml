@@ -46,7 +46,7 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff
-        run: ruff check . --select E,F,W,I --ignore E501
+        run: ruff check . --select E,F,W,I
 
   lint-dashboards:
     name: Lint (dashboards + rules)
@@ -241,6 +241,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PyYAML
+        run: pip install PyYAML
 
       - name: Validate keywords.yaml
         run: |

@@ -11,6 +11,7 @@ Usage:
   python main.py trace
   python main.py retry
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +20,6 @@ import sys
 from typing import Optional
 
 import click
-
 from synth.client import SynthClient
 from synth.config import load_config
 from synth.evaluator import Evaluator
@@ -41,17 +41,34 @@ def _configure_logging(level: str) -> None:
 
 
 def _common_options(f):
-    f = click.option("--config", "config_path", default=None,
-                     envvar="SYNTH_CONFIG", help="Path to YAML config file")(f)
-    f = click.option("--base-url", default=None, envvar="SYNTH_BASE_URL",
-                     help="API base URL")(f)
-    f = click.option("--log-level", default="INFO",
-                     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
-                     help="Log verbosity")(f)
-    f = click.option("--no-tls-verify", is_flag=True, default=False,
-                     help="Disable TLS certificate verification")(f)
-    f = click.option("--json-report", default=None, envvar="SYNTH_JSON_REPORT",
-                     help="Write JSON report to this path")(f)
+    f = click.option(
+        "--config",
+        "config_path",
+        default=None,
+        envvar="SYNTH_CONFIG",
+        help="Path to YAML config file",
+    )(f)
+    f = click.option(
+        "--base-url", default=None, envvar="SYNTH_BASE_URL", help="API base URL"
+    )(f)
+    f = click.option(
+        "--log-level",
+        default="INFO",
+        type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+        help="Log verbosity",
+    )(f)
+    f = click.option(
+        "--no-tls-verify",
+        is_flag=True,
+        default=False,
+        help="Disable TLS certificate verification",
+    )(f)
+    f = click.option(
+        "--json-report",
+        default=None,
+        envvar="SYNTH_JSON_REPORT",
+        help="Write JSON report to this path",
+    )(f)
     return f
 
 
@@ -78,7 +95,9 @@ async def _run_traffic(
         tls_verify=cfg.tls_verify,
         x_synthetic=cfg.x_synthetic,
     ) as client:
-        pool = TokenPool(client, pool_size=cfg.token_pool_size, seed_admin=cfg.seed_admin_user)
+        pool = TokenPool(
+            client, pool_size=cfg.token_pool_size, seed_admin=cfg.seed_admin_user
+        )
         await pool.seed()
 
         runner = TrafficRunner(client, pool, metrics, cfg.profile)
@@ -98,10 +117,13 @@ async def _run_traffic(
         if run_chaos or cfg.profile.chaos_enabled:
             click.echo("\nRunning chaos scenarios...")
             from synth.chaos import ChaosInjector
+
             injector = ChaosInjector(client, pool)
             chaos_results = await injector.run_all()
 
-        evaluation = Evaluator(cfg.thresholds).evaluate(metrics, mesh_results, chaos_results)
+        evaluation = Evaluator(cfg.thresholds).evaluate(
+            metrics, mesh_results, chaos_results
+        )
         reporter.print_summary(metrics, mesh_results, evaluation)
         reporter.write_json_report(metrics, mesh_results, evaluation, chaos_results)
 
@@ -117,7 +139,9 @@ def cli():
 @cli.command()
 @_common_options
 @click.option("--url", "base_url_override", default=None, help="Override base URL")
-def smoke(config_path, base_url_override, log_level, no_tls_verify, json_report, base_url):
+def smoke(
+    config_path, base_url_override, log_level, no_tls_verify, json_report, base_url
+):
     """
     Quick smoke test: 30s, 5 rps, covers all endpoint categories.
     Returns exit 0 if healthy, 1 if failures detected.
@@ -141,15 +165,30 @@ def smoke(config_path, base_url_override, log_level, no_tls_verify, json_report,
 
 @cli.command()
 @_common_options
-@click.option("--profile", "profile_name",
-              type=click.Choice(list(PROFILES.keys())),
-              default="normal", show_default=True,
-              help="Traffic profile to use")
+@click.option(
+    "--profile",
+    "profile_name",
+    type=click.Choice(list(PROFILES.keys())),
+    default="normal",
+    show_default=True,
+    help="Traffic profile to use",
+)
 @click.option("--duration", type=int, default=None, help="Override duration in seconds")
 @click.option("--concurrency", type=int, default=None, help="Override concurrency")
-@click.option("--rps", type=float, default=None, help="Override RPS target (0 = unlimited)")
-def run(config_path, profile_name, duration, concurrency, rps,
-        log_level, no_tls_verify, json_report, base_url):
+@click.option(
+    "--rps", type=float, default=None, help="Override RPS target (0 = unlimited)"
+)
+def run(
+    config_path,
+    profile_name,
+    duration,
+    concurrency,
+    rps,
+    log_level,
+    no_tls_verify,
+    json_report,
+    base_url,
+):
     """
     Run synthetic traffic with the specified profile.
 
@@ -180,10 +219,16 @@ def run(config_path, profile_name, duration, concurrency, rps,
 
 @cli.command()
 @_common_options
-@click.option("--validate-all", is_flag=True, default=False,
-              help="Enable all mesh validation checks")
+@click.option(
+    "--validate-all",
+    is_flag=True,
+    default=False,
+    help="Enable all mesh validation checks",
+)
 @click.option("--duration", type=int, default=120)
-def mesh(config_path, validate_all, duration, log_level, no_tls_verify, json_report, base_url):
+def mesh(
+    config_path, validate_all, duration, log_level, no_tls_verify, json_report, base_url
+):
     """
     Istio / service mesh validation mode.
 
@@ -206,7 +251,7 @@ def mesh(config_path, validate_all, duration, log_level, no_tls_verify, json_rep
         cfg.mesh.validate_retries = True
         cfg.mesh.validate_timeouts = True
         cfg.mesh.validate_circuit_breaker = True
-        cfg.mesh.validate_canary = False   # requires active canary deployment
+        cfg.mesh.validate_canary = False  # requires active canary deployment
         cfg.mesh.validate_fault_injection = False  # requires VirtualService config
         cfg.mesh.validate_trace_propagation = True
         cfg.mesh.validate_mtls = True
@@ -218,16 +263,40 @@ def mesh(config_path, validate_all, duration, log_level, no_tls_verify, json_rep
 
 @cli.command()
 @_common_options
-@click.option("--expected-version", default="canary", show_default=True,
-              help="Expected value in the version response header")
-@click.option("--expected-weight", type=float, default=0.10, show_default=True,
-              help="Expected canary traffic fraction (0.10 = 10%%)")
-@click.option("--tolerance", type=float, default=0.05, show_default=True,
-              help="Acceptable deviation from expected weight")
+@click.option(
+    "--expected-version",
+    default="canary",
+    show_default=True,
+    help="Expected value in the version response header",
+)
+@click.option(
+    "--expected-weight",
+    type=float,
+    default=0.10,
+    show_default=True,
+    help="Expected canary traffic fraction (0.10 = 10%%)",
+)
+@click.option(
+    "--tolerance",
+    type=float,
+    default=0.05,
+    show_default=True,
+    help="Acceptable deviation from expected weight",
+)
 @click.option("--sample-size", type=int, default=300, show_default=True)
 @click.option("--duration", type=int, default=120, show_default=True)
-def canary(config_path, expected_version, expected_weight, tolerance, sample_size, duration,
-           log_level, no_tls_verify, json_report, base_url):
+def canary(
+    config_path,
+    expected_version,
+    expected_weight,
+    tolerance,
+    sample_size,
+    duration,
+    log_level,
+    no_tls_verify,
+    json_report,
+    base_url,
+):
     """
     Canary rollout validation: verify traffic split matches declared weight.
 

@@ -12,18 +12,20 @@ Archetypes:
   wallet_heavy     — deposit → check balance → withdraw → history
   admin            — internal diagnostic endpoints
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
-from .client import SynthClient
-from .token_manager import TokenPool, UserCredentials
-from .payloads import FLAG_KEYS
 import synth.endpoints as ep
+
+from .client import SynthClient
+from .payloads import FLAG_KEYS
+from .token_manager import TokenPool
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,7 @@ class AnonymousScenario:
     Unauthenticated traffic: health probes and warm-path checks.
     Models load balancers, monitoring agents, and pre-auth browsers.
     """
+
     name = "anonymous"
 
     async def run(self, client: SynthClient, pool: TokenPool) -> ScenarioResult:
@@ -77,6 +80,7 @@ class AuthenticatedUserScenario:
 
     Represents casual users checking account status or browsing.
     """
+
     name = "authenticated"
 
     async def run(self, client: SynthClient, pool: TokenPool) -> ScenarioResult:
@@ -104,7 +108,7 @@ class AuthenticatedUserScenario:
             if 200 <= r.status_code < 300:
                 result.successes += 1
             elif r.status_code == 404:
-                result.successes += 1   # 404 on a flag key is expected
+                result.successes += 1  # 404 on a flag key is expected
             else:
                 result.errors += 1
             await _think(100, 500)
@@ -120,6 +124,7 @@ class ActiveBettorScenario:
     This scenario exercises the entire transactional stack:
     wallet reservation, risk evaluation, bet settlement.
     """
+
     name = "active_bettor"
 
     def __init__(self, bets_per_session: int = 3) -> None:
@@ -153,7 +158,7 @@ class ActiveBettorScenario:
             # We can't easily get body from RequestRecord in the current design;
             # generate a plausible session_id for downstream calls and handle
             # 404s gracefully. In a full impl, client would return body too.
-            session_id = None   # downstream bets will omit session_id
+            session_id = None  # downstream bets will omit session_id
         else:
             result.errors += 1
         await _think(100, 300)
@@ -196,9 +201,11 @@ class ActiveBettorScenario:
 
 class WalletHeavyScenario:
     """
-    Wallet-focused flow: deposit → check balance → transaction history → optional withdraw.
-    Models payment-heavy users (cashiers, finance validation).
+    Wallet-focused flow: deposit → check balance → transaction history
+    → optional withdraw. Models payment-heavy users (cashiers, finance
+    validation).
     """
+
     name = "wallet_heavy"
 
     async def run(self, client: SynthClient, pool: TokenPool) -> ScenarioResult:
@@ -221,8 +228,9 @@ class WalletHeavyScenario:
 
         # Idempotency replay test — same key, should return same result
         if r.status_code in (200, 201):
-            # Re-record last idempotency key; note: in our client the idem key is generated
-            # per request. For a true replay test, pass the same key explicitly.
+            # Re-record last idempotency key; note: in our client the
+            # idem key is generated per request. For a true replay test,
+            # pass the same key explicitly.
             pass
         await _think(100, 200)
 
@@ -263,6 +271,7 @@ class AdminScenario:
     Internal diagnostic flow: status, config, db stats.
     Low frequency. Requires admin token — skips gracefully if unavailable.
     """
+
     name = "admin"
 
     async def run(self, client: SynthClient, pool: TokenPool) -> ScenarioResult:

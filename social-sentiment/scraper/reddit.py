@@ -9,6 +9,7 @@ Anti-fragility:
   - Falls back to JSON fallback endpoint (old.reddit.com + .json) if DOM scrape fails
   - Validates minimum field presence before yielding
 """
+
 from __future__ import annotations
 
 import json
@@ -17,33 +18,32 @@ import re
 from typing import AsyncIterator, Optional
 from urllib.parse import quote_plus
 
-from playwright.async_api import Page
+from config.settings import SCRAPER_MAX_POSTS_PER_RUN
 
 from scraper.base import BaseScraper, RawPost
-from config.settings import SCRAPER_MAX_POSTS_PER_RUN, SCRAPER_RATE_LIMIT_DELAY_S
 
 logger = logging.getLogger(__name__)
 
 SELECTORS = {
     # New Reddit (shreddit / post-v2 design)
-    "post_container":   "shreddit-post",
-    "post_title":       "[slot='title']",
-    "post_body":        "[slot='text-body']",
-    "post_id_attr":     "id",           # attribute on shreddit-post element
-    "post_permalink":   "permalink",    # attribute on shreddit-post element
-    "post_author":      "author",       # attribute
-    "post_score":       "score",        # attribute
-    "post_created":     "created-timestamp",  # attribute (ISO string)
-    "post_sub":         "subreddit-prefixed-name",
+    "post_container": "shreddit-post",
+    "post_title": "[slot='title']",
+    "post_body": "[slot='text-body']",
+    "post_id_attr": "id",  # attribute on shreddit-post element
+    "post_permalink": "permalink",  # attribute on shreddit-post element
+    "post_author": "author",  # attribute
+    "post_score": "score",  # attribute
+    "post_created": "created-timestamp",  # attribute (ISO string)
+    "post_sub": "subreddit-prefixed-name",
     # Old Reddit fallback
-    "old_posts":        ".thing.link",
-    "old_title":        "a.title",
-    "old_author":       ".author",
-    "old_score":        ".score.unvoted",
+    "old_posts": ".thing.link",
+    "old_title": "a.title",
+    "old_author": ".author",
+    "old_score": ".score.unvoted",
 }
 
 REDDIT_SEARCH_TPL = "https://www.reddit.com/search/?q={q}&sort=new&t=day&type=link"
-OLD_REDDIT_JSON   = "https://www.reddit.com/search.json?q={q}&sort=new&t=day&limit=100"
+OLD_REDDIT_JSON = "https://www.reddit.com/search.json?q={q}&sort=new&t=day&limit=100"
 
 
 class RedditScraper(BaseScraper):
@@ -69,13 +69,11 @@ class RedditScraper(BaseScraper):
 
     # ── JSON endpoint ───────────────────────────────────────────────────────
 
-    async def _scrape_json(
-        self, query: str, max_posts: int
-    ) -> AsyncIterator[RawPost]:
+    async def _scrape_json(self, query: str, max_posts: int) -> AsyncIterator[RawPost]:
         url = OLD_REDDIT_JSON.format(q=quote_plus(query))
         page = await self._new_page()
         try:
-            resp = await self._with_retry(page.goto, url, wait_until="load")
+            await self._with_retry(page.goto, url, wait_until="load")
             content = await page.content()
             # Playwright returns the JSON embedded in an HTML page
             m = re.search(r"<pre[^>]*>(.*?)</pre>", content, re.DOTALL)
@@ -120,9 +118,7 @@ class RedditScraper(BaseScraper):
 
     # ── DOM fallback ────────────────────────────────────────────────────────
 
-    async def _scrape_dom(
-        self, query: str, max_posts: int
-    ) -> AsyncIterator[RawPost]:
+    async def _scrape_dom(self, query: str, max_posts: int) -> AsyncIterator[RawPost]:
         url = REDDIT_SEARCH_TPL.format(q=quote_plus(query))
         page = await self._new_page()
         try:
@@ -141,19 +137,21 @@ class RedditScraper(BaseScraper):
                     break
                 try:
                     title_el = await el.query_selector(SELECTORS["post_title"])
-                    body_el  = await el.query_selector(SELECTORS["post_body"])
-                    title  = (await title_el.inner_text()).strip() if title_el else ""
-                    body   = (await body_el.inner_text()).strip()  if body_el  else ""
-                    text   = self._noise_filter(f"{title} {body}".strip())
+                    body_el = await el.query_selector(SELECTORS["post_body"])
+                    title = (await title_el.inner_text()).strip() if title_el else ""
+                    body = (await body_el.inner_text()).strip() if body_el else ""
+                    text = self._noise_filter(f"{title} {body}".strip())
                     if not text:
                         continue
 
-                    post_id   = await el.get_attribute(SELECTORS["post_id_attr"]) or ""
-                    permalink = await el.get_attribute(SELECTORS["post_permalink"]) or ""
-                    author    = await el.get_attribute(SELECTORS["post_author"])
+                    post_id = await el.get_attribute(SELECTORS["post_id_attr"]) or ""
+                    permalink = (
+                        await el.get_attribute(SELECTORS["post_permalink"]) or ""
+                    )
+                    author = await el.get_attribute(SELECTORS["post_author"])
                     score_raw = await el.get_attribute(SELECTORS["post_score"]) or "0"
-                    created   = await el.get_attribute(SELECTORS["post_created"])
-                    sub       = await el.get_attribute(SELECTORS["post_sub"])
+                    created = await el.get_attribute(SELECTORS["post_created"])
+                    sub = await el.get_attribute(SELECTORS["post_sub"])
 
                     yield RawPost(
                         platform=self.platform,
@@ -177,6 +175,7 @@ class RedditScraper(BaseScraper):
         if unix is None:
             return None
         from datetime import datetime, timezone
+
         return datetime.fromtimestamp(float(unix), tz=timezone.utc).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )

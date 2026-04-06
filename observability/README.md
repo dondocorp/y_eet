@@ -1,6 +1,6 @@
-# Yeet Observability Platform
+# Observability Platform
 
-Full-stack, open-source observability for a production iGaming platform. Traces, metrics, logs, dashboards, SLOs, synthetic checks, and incident runbooks — all in one place, all provisioned from this directory.
+> Full-stack observability for the Yeet crypto-casino platform. Traces, metrics, logs, dashboards, SLOs, synthetic checks, and incident runbooks — all provisioned from this directory.
 
 ---
 
@@ -33,7 +33,7 @@ observability/
 │   └── otelcol-local.yaml        # Local dev: used by docker-compose
 │
 ├── istio/
-│   ├── telemetry.yaml            # Telemetry CRs — sampling rates per namespace, access log filter, custom tags
+│   ├── telemetry.yaml            # Telemetry CRs — sampling rates per namespace, access log filter
 │   ├── peer-authentication.yaml  # mTLS STRICT mesh-wide + scraper exemptions
 │   └── mesh-config-patch.yaml    # Global meshconfig — JSON access log format, tracing endpoint
 │
@@ -52,15 +52,15 @@ observability/
 ├── loki/
 │   ├── loki-config.yaml          # Production: S3 backend, 31d hot, TSDB schema v13
 │   ├── loki-local.yaml           # Local dev: filesystem backend
-│   └── fluent-bit-daemonset.yaml # DaemonSet + ConfigMap — tails pods, enriches K8s metadata, ships to Loki
+│   └── fluent-bit-daemonset.yaml # DaemonSet + ConfigMap — tails pods, enriches K8s metadata
 │
 ├── tempo/
-│   ├── tempo-config.yaml         # Production: S3 backend, metrics-generator (service graph + span metrics)
+│   ├── tempo-config.yaml         # Production: S3 backend, metrics-generator (service graph + spans)
 │   └── tempo-local.yaml          # Local dev: filesystem backend
 │
 ├── grafana/
 │   ├── provisioning/
-│   │   ├── datasources/          # Prometheus (Thanos), Loki, Tempo, CloudWatch — with trace↔log linking
+│   │   ├── datasources/          # Prometheus (Thanos), Loki, Tempo, CloudWatch — trace↔log linking
 │   │   └── dashboards/           # Folder definitions for dashboard-as-code
 │   └── dashboards/
 │       ├── platform-health/
@@ -70,7 +70,7 @@ observability/
 │       ├── infrastructure/
 │       │   └── istio-traffic.json           # Service mesh traffic, mTLS, response flags, service map
 │       └── reliability/
-│           ├── incident-triage.json         # On-call view: alerts, errors, latency, logs, service map
+│           ├── incident-triage.json         # On-call view: alerts, errors, latency, logs
 │           └── slo-error-budget.json        # Error budget burn rates, SLO compliance, latency SLOs
 │
 ├── k6/
@@ -95,18 +95,18 @@ observability/
 
 ## Telemetry Architecture
 
-### What comes from where
+### Signal ownership
 
 | Signal | Source | Do NOT duplicate |
 |---|---|---|
 | HTTP request count | Istio `istio_requests_total` | Do not use app `yeet_http_requests_total` for SLOs |
 | HTTP request duration | Istio `istio_request_duration_milliseconds` | Do not create a competing histogram in app middleware |
 | mTLS status, cert expiry | Istio + cert-manager | App has no visibility here |
-| Service-to-service errors | Istio (response_code label) | App emits business error context only |
+| Service-to-service errors | Istio (`response_code` label) | App emits business error context only |
 | Business transaction traces | App OTEL SDK | Istio emits only L7 spans per hop |
 | Business domain metrics | App OTEL SDK | Bet amounts, wallet deltas, risk scores |
 | Structured app logs | App stdout → Fluent Bit → Loki | Separate stream from Istio access logs |
-| Istio access logs | Envoy stdout → Fluent Bit → Loki | Label `job=istio-access-log` — do not merge with app logs |
+| Istio access logs | Envoy stdout → Fluent Bit → Loki | Label `job=istio-access-log` — do not merge |
 
 ### Trace propagation
 
@@ -120,7 +120,7 @@ Client request
       → response (trace_id echoed in response body)
 ```
 
-All spans carry `traceparent` (W3C) headers. Istio configured to forward to OTEL Collector Gateway via Zipkin protocol. Gateway applies tail-based sampling before writing to Tempo.
+All spans carry `traceparent` (W3C) headers. Istio forwards to OTEL Collector Gateway via Zipkin. Gateway applies tail-based sampling before writing to Tempo.
 
 ### Sampling policy (OTEL Gateway)
 
@@ -134,9 +134,9 @@ All spans carry `traceparent` (W3C) headers. Istio configured to forward to OTEL
 
 Istio namespace overrides: `betting` and `wallet` namespaces → 100% sampling at the sidecar level.
 
-### Log correlation
+### Log → trace correlation
 
-Every log line includes `trace_id` as a JSON field (not a Loki label). Grafana Loki datasource is configured with a derived field regex `"trace_id":"([a-f0-9]{32})"` → links directly to Tempo trace. One click from error log → full distributed trace.
+Every log line includes `trace_id` as a JSON field. The Grafana Loki datasource is configured with a derived field regex `"trace_id":"([a-f0-9]{32})"` → links directly to Tempo. One click from an error log → full distributed trace.
 
 ---
 
@@ -165,10 +165,15 @@ Grafana
 │   ├── Infra / Runtime           — nodes, pods, PVCs, crashloops
 │   └── AWS Managed Services      — RDS, ElastiCache, SQS via CloudWatch
 │
-└── Reliability
-    ├── Incident Triage           — alerts panel, errors by service, logs, service map
-    ├── Deployment Health         — deploy annotations, error rate before/after, rollback status
-    └── Synthetic Monitoring      — k6 check results, Blackbox probe status, post-deploy gates
+├── Reliability
+│   ├── Incident Triage           — alerts panel, errors by service, logs, service map
+│   ├── Deployment Health         — deploy annotations, error rate before/after, rollback
+│   └── Synthetic Monitoring      — k6 check results, Blackbox probe status, post-deploy gates
+│
+└── Brand Intelligence
+    ├── Executive View            — KPI stats, 24h sentiment trend, alert history
+    ├── Operations View           — real-time negative ratio, scraper health, live logs
+    └── Pipeline Health           — classifier failures, relevance distribution, Tempo traces
 ```
 
 ### Dashboard naming convention
@@ -178,7 +183,7 @@ File:   {folder}-{service-or-scope}-{purpose}.json
 Title:  [SCOPE] Service/Component — Purpose
 Panel:  {MetricType}: {Description}
 
-Examples:
+Example:
   services-betting-reliability.json
   [SERVICE] Betting — Reliability
   P99 Latency: Bet Placement End-to-End
@@ -192,7 +197,7 @@ Examples:
 
 | Severity | Meaning | Pages? | Channel |
 |---|---|---|---|
-| `critical` + `page: true` | Revenue/availability impact, requires immediate human action | Yes (PagerDuty) | `#alerts-critical` |
+| `critical` + `page: true` | Revenue/availability impact, immediate human action required | Yes (PagerDuty) | `#alerts-critical` |
 | `critical` | Serious degradation, high urgency | No (Slack only) | `#alerts-critical` |
 | `warning` | Elevated risk, needs attention soon | No | `#alerts-warnings` |
 
@@ -230,7 +235,7 @@ Examples:
 | Wallet read availability | `(non-5xx requests) / total` | 99.9% | 30d | Istio |
 | Observability pipeline health | Collector `up` + no span drops | 99.5% | 30d | Prometheus |
 
-Burn-rate alerts use two-window detection (fast: 1h at 14.4x, slow: 6h at 6x) to catch both sudden spikes and slow leaks.
+Burn-rate alerts use two-window detection (fast: 1h at 14.4×, slow: 6h at 6×) to catch both sudden spikes and slow leaks before meaningful error budget is consumed.
 
 ---
 
@@ -273,7 +278,7 @@ All synthetic requests carry `X-Synthetic: true` → tagged in metrics, logs, an
 
 ## Local Development
 
-Everything runs in Docker Compose:
+Start the full stack:
 
 ```bash
 docker compose up
@@ -281,14 +286,14 @@ docker compose up
 
 | Service | URL |
 |---|---|
-| API | http://localhost:8080 |
-| Prometheus metrics | http://localhost:9464/metrics |
-| Grafana | http://localhost:3000 (anonymous admin) |
-| Prometheus | http://localhost:9090 |
-| Tempo | http://localhost:3200 |
-| Loki | http://localhost:3100 |
-| Alertmanager | http://localhost:9093 |
-| Blackbox Exporter | http://localhost:9115 |
+| API | `http://localhost:8080` |
+| Prometheus metrics | `http://localhost:9464/metrics` |
+| Grafana | `http://localhost:3000` (anonymous admin) |
+| Prometheus | `http://localhost:9090` |
+| Tempo | `http://localhost:3200` |
+| Loki | `http://localhost:3100` |
+| Alertmanager | `http://localhost:9093` |
+| Blackbox Exporter | `http://localhost:9115` |
 
 Grafana auto-provisions all datasources and dashboards from `observability/grafana/`. No manual setup required.
 
@@ -296,10 +301,10 @@ Grafana auto-provisions all datasources and dashboards from `observability/grafa
 
 ## Adding a New Service
 
-1. **Instrument the service** — import from `../telemetry/metrics` and `../telemetry/tracer`. The CI `instrumentation-check` job will fail if you don't.
-2. **Add resource attributes** — ensure `service.name`, `service.version`, and `deployment.environment` are set (inherited from the OTEL SDK resource in `tracer.ts`).
-3. **Define RED metrics** — at minimum: request counter, error counter, latency histogram.
-4. **Add a dashboard** — copy `services/api-reliability.json` as a template. Push to `observability/grafana/dashboards/services/`.
-5. **Add an SLO** — add recording rules to `prometheus/rules/slo-burn-rate.yaml` following the existing pattern.
-6. **Add a runbook** — copy an existing runbook template into `runbooks/`. Link it from alert `annotations.runbook`.
-7. **Add a synthetic check** — add a k6 script to `k6/checks/` and wire it into `synthetic-monitoring.yml`.
+1. **Instrument** — import from `../telemetry/metrics` and `../telemetry/tracer`. The CI `instrumentation-check` job fails if you don't.
+2. **Resource attributes** — ensure `service.name`, `service.version`, and `deployment.environment` are set (inherited from the OTEL SDK resource in `tracer.ts`).
+3. **RED metrics** — at minimum: request counter, error counter, latency histogram.
+4. **Dashboard** — copy `services/api-reliability.json` as a template into `observability/grafana/dashboards/services/`.
+5. **SLO** — add recording rules to `prometheus/rules/slo-burn-rate.yaml` following the existing pattern.
+6. **Runbook** — copy an existing runbook template into `runbooks/`. Link it from alert `annotations.runbook`.
+7. **Synthetic check** — add a k6 script to `k6/checks/` and wire it into `synthetic-monitoring.yml`.

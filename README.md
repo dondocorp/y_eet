@@ -1,18 +1,64 @@
-# yeet
+# Yeet
 
-> Production-grade iGaming platform — real-time betting, provably fair games, atomic wallets, full-stack observability, and brand intelligence. Built to handle money.
+> Production-grade crypto-casino platform — real-time betting, provably fair games, atomic wallets, full-stack observability, and brand intelligence. Built to handle money.
+
+[![CI](https://github.com/dondocorp/yeet/actions/workflows/ci.yml/badge.svg)](https://github.com/dondocorp/yeet/actions/workflows/ci.yml)
+[![Deploy](https://github.com/dondocorp/yeet/actions/workflows/deploy.yml/badge.svg)](https://github.com/dondocorp/yeet/actions/workflows/deploy.yml)
+[![Observability](https://github.com/dondocorp/yeet/actions/workflows/observability-deploy.yml/badge.svg)](https://github.com/dondocorp/yeet/actions/workflows/observability-deploy.yml)
+![Stack](https://img.shields.io/badge/stack-Node%20%7C%20Python%20%7C%20Postgres%20%7C%20Redis-informational)
+![Observability](https://img.shields.io/badge/observability-Prometheus%20%7C%20Grafana%20%7C%20Tempo%20%7C%20Loki-blueviolet)
+![IaC](https://img.shields.io/badge/infra-Terraform%20%7C%20EKS%20%7C%20Istio-orange)
 
 ---
 
-## What this is
+## Overview
 
-Yeet is a transactional iGaming backend with a complete production observability stack baked in. It's not a demo — every component is wired for real traffic, real money, and real incidents.
+Yeet is a transactional crypto-casino backend with a production-grade observability stack baked in. Every component is wired for real traffic, real money, and real incidents.
 
-**Core platform** — Auth, wallet, bet placement, game sessions, settlement, and fraud/risk, all with idempotent writes and atomic fund management.
+| Layer | What it does |
+|---|---|
+| **Core platform** | Auth, wallet, bet placement, game sessions, settlement, fraud/risk — all idempotent, atomic, and observable |
+| **Observability stack** | Distributed traces (Tempo), metrics (Prometheus + Thanos), logs (Loki), dashboards (Grafana), synthetic monitoring, SLO burn-rate alerting, Istio mesh telemetry |
+| **Brand intelligence** | Social media sentiment pipeline — Reddit + Twitter scraping, RoBERTa classification, Grafana Brand Intelligence dashboards, Telegram alerts |
 
-**Observability stack** — Distributed traces (Tempo), metrics (Prometheus + Thanos), logs (Loki), dashboards (Grafana), synthetic monitoring (k6 + Blackbox), SLO burn-rate alerting, and Istio mesh telemetry. Everything ships to a single Grafana portal.
+---
 
-**Brand intelligence** — Social media sentiment pipeline that scrapes Reddit and Twitter, classifies brand relevance and sentiment, and surfaces trends, spikes, and alerts into the same Grafana portal as a dedicated Brand Intelligence domain.
+## Quick Start
+
+**One command. Everything comes alive.**
+
+```bash
+./scripts/demo.sh
+```
+
+Starts the full stack: API · PostgreSQL · Redis · OTEL Collector · Prometheus · Grafana · Loki · Tempo · Alertmanager · Social Sentiment pipeline · Synthetic traffic. Opens dashboards automatically.
+
+**Prerequisites:** `docker` (Compose v2), `curl`
+
+```bash
+./scripts/demo.sh --skip-synth    # no synthetic traffic
+./scripts/demo.sh --skip-browser  # skip auto-opening browser
+./scripts/demo.sh --rebuild       # force Docker image rebuild
+```
+
+> After startup, watch **Grafana → API Reliability** for live request and error rates,  
+> **SLO Error Budget** for burn-rate tracking, and **Brand Intelligence** for sentiment signals.
+
+---
+
+## Service Map
+
+| Service | URL | Notes |
+|---|---|---|
+| API | `http://localhost:8080` | Fastify / TypeScript |
+| API metrics | `http://localhost:9464/metrics` | Prometheus scrape endpoint |
+| Grafana | `http://localhost:3000` | Anonymous admin — no login |
+| Prometheus | `http://localhost:9090` | |
+| Alertmanager | `http://localhost:9093` | |
+| Tempo | `http://localhost:3200` | Distributed traces |
+| Loki | `http://localhost:3100` | Structured logs |
+| Sentiment metrics | `http://localhost:9465/metrics` | `social_*` metric family |
+| Analyst dashboard | `http://localhost:8501` | Streamlit UI |
 
 ---
 
@@ -25,26 +71,26 @@ Yeet is a transactional iGaming backend with a complete production observability
 | **Auth** | JWT (HS256) + rotating refresh tokens, single-use session invalidation, device fingerprinting |
 | **Wallet** | Reserve/release ledger model, idempotent writes, atomic bet staking, zero double-spend |
 | **Betting** | 8-step placement pipeline: idempotency → eligibility → limits → session → risk → reserve → persist → settle |
-| **Settlement** | Instant (crash/slots via HMAC-SHA256 provably fair) or async settlement via admin/engine |
+| **Settlement** | Instant (crash/slots via HMAC-SHA256 provably fair) or async via admin/engine |
 | **Risk** | Inline rule engine with circuit breaker — high-value bets, velocity, loss limits, account tiers |
 | **Game Sessions** | Session lifecycle management, server-seed commitment scheme |
 | **Fraud Signals** | Risk signal ingestion and profile scoring (`low → standard → elevated → high → blocked`) |
-| **Config Flags** | Runtime feature flag system (`ConfigService`) — enable/disable risk eval, game types, limits |
+| **Config Flags** | Runtime feature flag system — enable/disable risk eval, game types, limits |
 
 ### Observability Stack
 
 | Signal | Tool | Storage | Retention |
 |---|---|---|---|
-| **Traces** | OTEL SDK → OTEL Collector (tail sampling) → Tempo | S3 Standard → Glacier IR | 7d hot / 30d cold |
-| **Metrics** | Prometheus Operator + Thanos sidecar | S3 (Thanos blocks) | 2d local / 13 months |
-| **Logs** | Fluent Bit → Loki (S3 backend) | S3 Standard → Glacier IR | 31d hot / 12m cold |
+| **Traces** | OTEL SDK → OTEL Collector (tail sampling) → Tempo | S3 → Glacier IR | 7d hot / 30d cold |
+| **Metrics** | Prometheus + Thanos sidecar | S3 (Thanos blocks) | 2d local / 13 months |
+| **Logs** | Fluent Bit → Loki (S3 backend) | S3 → Glacier IR | 31d hot / 12m cold |
 | **Dashboards** | Grafana OSS 10.x (single portal) | Provisioned from repo | — |
 | **Synthetics** | k6 (scripted flows) + Blackbox Exporter | Prometheus metrics | 7d |
 | **Mesh telemetry** | Istio Envoy sidecars → Prometheus | Same as metrics | Same as metrics |
 | **Alerting** | Prometheus Alertmanager + Grafana Unified | — | — |
 | **SLOs** | PromQL recording rules + multi-window burn rate | Same as metrics | — |
 | **Long-term** | Thanos Compactor (5m/1h downsampling) | S3 Glacier IR | 13 months |
-| **Brand intelligence** | social-sentiment pipeline → Prometheus `/metrics` | SQLite (90d raw, permanent hourly) | 90d raw / permanent aggregates |
+| **Brand intelligence** | social-sentiment → Prometheus `/metrics` | SQLite (90d raw, permanent hourly) | 90d raw / permanent |
 
 ### Brand Intelligence
 
@@ -66,15 +112,15 @@ Yeet is a transactional iGaming backend with a complete production observability
 | **Runtime** | EKS (Kubernetes 1.29+), Karpenter node autoscaling |
 | **Service mesh** | Istio 1.21 — mTLS, L7 traffic policy, access logs, tracing |
 | **IaC** | Terraform (modular, S3 remote state, OIDC auth) |
-| **CI/CD** | GitHub Actions — lint → instrumentation check → observability config validation → test → build → deploy → synthetic validation → SLO regression check |
-| **Secrets** | AWS Secrets Manager + IRSA (IAM Roles for Service Accounts) |
+| **CI/CD** | GitHub Actions — lint → instrumentation check → observability validation → test → build → deploy → synthetic gate → SLO check |
+| **Secrets** | AWS Secrets Manager + IRSA |
 | **Container registry** | GitHub Container Registry (GHCR) |
 
 ### Reliability Posture
 
 | SLO | Target | Window |
 |---|---|---|
-| Auth/Session availability | 99.9% | 30d rolling |
+| Auth / session availability | 99.9% | 30d rolling |
 | Bet placement availability | 99.5% | 30d rolling |
 | Bet placement P99 latency | < 500ms | 30d rolling |
 | Wallet read availability | 99.9% | 30d rolling |
@@ -86,7 +132,7 @@ Yeet is a transactional iGaming backend with a complete production observability
 
 ```
 yeet/
-├── src/                    # Application source (Fastify/TypeScript)
+├── src/                    # Application source (Fastify / TypeScript)
 │   ├── routes/             # HTTP handlers — auth, wallet, bets, games, risk, health
 │   ├── services/           # Business logic — BetService, WalletService, RiskService, …
 │   ├── repositories/       # SQL layer — pg pool, typed queries
@@ -112,66 +158,66 @@ yeet/
 │   ├── synthetic/          # Blackbox Exporter config
 │   └── runbooks/           # Incident runbooks (api-outage, queue-lag, wallet, collector, canary)
 │
-├── social-sentiment/       # Brand intelligence + social sentiment pipeline (Python)
+├── social-sentiment/       # Brand intelligence pipeline (Python)
 │   ├── scraper/            # Playwright scrapers — Reddit, Twitter
-│   ├── nlp/                # Relevance classifier, sentiment classifier (RoBERTa)
-│   ├── storage/            # SQLite schema + typed access layer
+│   ├── nlp/                # Relevance classifier, RoBERTa sentiment
+│   ├── storage/            # SQLite schema + access layer
 │   ├── pipeline/           # Ingest orchestrator, hourly aggregation
 │   ├── alerts/             # Alert evaluator, Telegram + Alertmanager sender
-│   ├── metrics/            # Prometheus metrics exporter on :9465
-│   ├── observability/      # OTEL tracer, JSON logger
-│   ├── config/             # Settings (env vars), keyword rules YAML
+│   ├── metrics/            # Prometheus exporter on :9465
 │   ├── dashboard/          # Streamlit analyst UI on :8501
-│   ├── scripts/            # Scheduler, DB init, cron entrypoint
-│   └── tests/              # Full test suite — relevance, sentiment, storage, alerts, metrics
+│   └── tests/              # Full test suite
+│
+├── yeet-synth/             # Python synthetic traffic generator
+│   ├── synth/              # Archetypes, profiles, mesh validator, OTel, chaos
+│   └── config/             # Profile YAML files
 │
 ├── terraform/              # Infrastructure provisioning
-│   ├── environments/       # prod, staging — root modules
+│   ├── environments/       # prod, staging root modules
 │   └── modules/            # grafana, loki, tempo, prometheus, otel-collector, storage
 │
 ├── .github/workflows/
-│   ├── ci.yml                    # Lint + instrumentation check + observability validation + tests
-│   ├── deploy.yml                # Image build → staging → prod + synthetic gates + SLO check
-│   ├── observability-deploy.yml  # Terraform plan/apply + dashboard push + rule deploy
+│   ├── ci.yml                    # Lint + instrumentation check + tests
+│   ├── deploy.yml                # Build → staging → prod + synthetic gates + SLO check
+│   ├── observability-deploy.yml  # Terraform + dashboard push + rule deploy
 │   ├── synthetic-monitoring.yml  # Scheduled k6 checks every 5 minutes
-│   └── social-sentiment.yml      # Sentiment pipeline CI — lint, tests, validate, build, notify
+│   └── social-sentiment.yml      # Sentiment pipeline CI
 │
-└── yeet-synth/             # Python synthetic traffic generator (mesh + chaos scenarios)
+└── scripts/
+    └── demo.sh             # One-command local demo launcher
 ```
 
 ---
 
-## Quick Start
+## Local Development
+
+### Manual stack startup
 
 ```bash
-# Start the full local stack (API + Postgres + Redis + Prometheus + Loki + Tempo + Grafana)
+cp .env.example .env
 docker compose up
-
-# API:                    http://localhost:8080
-# API Metrics:            http://localhost:9464/metrics
-# Grafana:                http://localhost:3000   (anonymous admin, no login)
-# Prometheus:             http://localhost:9090
-# Tempo:                  http://localhost:3200
-# Loki:                   http://localhost:3100
-# Brand Intelligence:     http://localhost:3000 → Brand Intelligence folder
-# Sentiment Metrics:      http://localhost:9465/metrics
-# Analyst Dashboard:      http://localhost:8501
 ```
 
-```bash
-# Start with brand intelligence pipeline included
-docker compose up social-sentiment social-sentiment-dashboard
-```
+### API only (no Docker observability)
 
 ```bash
-# Development (hot reload, no observability stack)
 cp .env.example .env
 npm ci
-npm run dev
+npm run dev     # hot-reload via ts-node-dev on :8080
 ```
 
+### Synthetic traffic
+
 ```bash
-# Run all checks
+cd yeet-synth
+make install                               # creates .venv, installs deps
+make smoke BASE_URL=http://localhost:8080  # 30s smoke test
+make run-normal BASE_URL=http://localhost:8080
+```
+
+### Run all checks
+
+```bash
 npm run lint && npm run typecheck && npm test
 ```
 
@@ -185,14 +231,16 @@ npm run lint && npm run typecheck && npm test
 
 **Fail-closed risk** — The circuit breaker's fallback rejects the bet (`decision: reject, score: 100`). A risk service outage never silently allows unscored bets through.
 
-**Trace ID in every response** — All error responses include `trace_id` from the active OTEL span. Frontend can hand this to support; support can paste it into Grafana Tempo and see the full trace.
+**Trace ID in every response** — All error responses include `trace_id` from the active OTEL span. Frontend hands this to support; support pastes it into Grafana Tempo for the full trace.
 
-**No Istio metric duplication** — `yeet_http_requests_total` and `yeet_http_request_duration_ms` are app-layer metrics for route/synthetic context. `istio_requests_total` and `istio_request_duration_milliseconds` are the source of truth for RED metrics and SLOs.
+**No Istio metric duplication** — `yeet_http_requests_total` / `yeet_http_request_duration_ms` are app-layer metrics for route/synthetic context. `istio_requests_total` / `istio_request_duration_milliseconds` are the source of truth for RED metrics and SLOs.
 
 ---
 
 ## Docs
 
-- [`src/README.md`](src/README.md) — application architecture, service logic, environment variables
-- [`observability/README.md`](observability/README.md) — observability platform, telemetry flows, runbook index, dashboard inventory
-- [`social-sentiment/README.md`](social-sentiment/README.md) — brand intelligence pipeline, sentiment model, alert rules, Grafana integration, keyword config
+| Document | What it covers |
+|---|---|
+| [`observability/README.md`](observability/README.md) | Observability platform, telemetry flows, dashboard inventory, alert rules, SLOs, runbook index |
+| [`social-sentiment/README.md`](social-sentiment/README.md) | Brand intelligence pipeline, sentiment model, alert rules, Grafana integration, keyword config |
+| [`yeet-synth/README.md`](yeet-synth/README.md) | Synthetic traffic generator, traffic profiles, mesh validation, CI integration |

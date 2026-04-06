@@ -1,5 +1,5 @@
 """Tests for scraper base utilities — no browser required."""
-import pytest
+
 from scraper.base import BaseScraper
 
 
@@ -21,7 +21,9 @@ class TestNoiseFilter:
         assert BaseScraper._noise_filter("RT @someone: Subscribe now link") is None
 
     def test_valid_text_passes(self):
-        result = BaseScraper._noise_filter("Yeet Casino withdrawal stuck for 3 days, very frustrated")
+        result = BaseScraper._noise_filter(
+            "Yeet Casino withdrawal stuck for 3 days, very frustrated"
+        )
         assert result is not None
         assert len(result) > 10
 
@@ -49,7 +51,9 @@ class TestSafePostId:
         assert pid == "1234567890"
 
     def test_reddit_comments_url(self):
-        pid = BaseScraper._safe_post_id("https://reddit.com/r/gambling/comments/abc123/post")
+        pid = BaseScraper._safe_post_id(
+            "https://reddit.com/r/gambling/comments/abc123/post"
+        )
         assert pid == "abc123"
 
     def test_raw_id_passthrough(self):

@@ -2,6 +2,7 @@
 Base scraper contract.
 All platform scrapers inherit from BaseScraper.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -11,16 +12,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import AsyncIterator, Optional
-
-from playwright.async_api import (
-    Browser,
-    BrowserContext,
-    Page,
-    Playwright,
-    async_playwright,
-    TimeoutError as PlaywrightTimeout,
-)
+from typing import TYPE_CHECKING, AsyncIterator, Optional
 
 from config.settings import (
     SCRAPER_HEADLESS,
@@ -28,6 +20,9 @@ from config.settings import (
     SCRAPER_PAGE_TIMEOUT_MS,
     SCRAPER_RATE_LIMIT_DELAY_S,
 )
+
+if TYPE_CHECKING:
+    from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +42,7 @@ class RawPost:
     author_handle: Optional[str] = None
     author_followers: Optional[int] = None
     post_url: Optional[str] = None
-    posted_at: Optional[str] = None   # ISO8601 UTC
+    posted_at: Optional[str] = None  # ISO8601 UTC
     likes: int = 0
     reposts: int = 0
     replies: int = 0
@@ -84,6 +79,8 @@ class BaseScraper(ABC):
         self._context: Optional[BrowserContext] = None
 
     async def __aenter__(self) -> "BaseScraper":
+        from playwright.async_api import async_playwright
+
         self._pw = await async_playwright().start()
         self._browser = await self._pw.chromium.launch(
             headless=SCRAPER_HEADLESS,
@@ -116,9 +113,7 @@ class BaseScraper(ABC):
     # ── Abstract interface ──────────────────────────────────────────────────
 
     @abstractmethod
-    async def scrape(
-        self, query: str, max_posts: int = 100
-    ) -> AsyncIterator[RawPost]:
+    async def scrape(self, query: str, max_posts: int = 100) -> AsyncIterator[RawPost]:
         """Yield RawPost objects for the given query."""
         ...
 
@@ -161,13 +156,15 @@ class BaseScraper(ABC):
 
     async def _with_retry(self, coro_fn, *args, **kwargs):
         """Retry an async call up to SCRAPER_MAX_RETRIES times with backoff."""
+        from playwright.async_api import TimeoutError as PlaywrightTimeout
+
         last_exc: Optional[Exception] = None
         for attempt in range(SCRAPER_MAX_RETRIES):
             try:
                 return await coro_fn(*args, **kwargs)
             except (PlaywrightTimeout, Exception) as exc:
                 last_exc = exc
-                wait = 2 ** attempt
+                wait = 2**attempt
                 logger.warning(
                     "scraper_retry",
                     extra={

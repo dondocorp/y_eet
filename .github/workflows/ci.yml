@@ -91,9 +91,10 @@ jobs:
       - name: Validate Prometheus rules
         run: |
           docker run --rm \
+            --entrypoint promtool \
             -v ${{ github.workspace }}/observability/prometheus:/etc/prometheus \
             prom/prometheus:v2.51.0 \
-            promtool check rules \
+            check rules \
               /etc/prometheus/rules/latency-errors.yaml \
               /etc/prometheus/rules/slo-burn-rate.yaml \
               /etc/prometheus/rules/queue-infra.yaml
@@ -101,9 +102,10 @@ jobs:
       - name: Validate Alertmanager config
         run: |
           docker run --rm \
+            --entrypoint amtool \
             -v ${{ github.workspace }}/observability/alertmanager:/etc/alertmanager \
             prom/alertmanager:v0.27.0 \
-            amtool check-config /etc/alertmanager/alertmanager-local.yaml
+            check-config /etc/alertmanager/alertmanager-local.yaml
 
       - name: Validate Grafana dashboard JSON
         run: |

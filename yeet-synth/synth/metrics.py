@@ -3,6 +3,7 @@ In-process metrics collection.
 Thread/coroutine-safe counters and latency histograms that produce
 p50/p95/p99 without external dependencies.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,17 +20,17 @@ class RequestRecord:
     method: str
     status_code: int
     latency_ms: float
-    retry_count: int = 0           # x-envoy-attempt-count - 1
+    retry_count: int = 0  # x-envoy-attempt-count - 1
     idempotency_replay: bool = False
     timeout: bool = False
     auth_failed: bool = False
     trace_id: str = ""
     traceparent_sent: bool = False
     traceparent_received: bool = False
-    canary_version: str = ""        # value of x-canary-version (or equivalent)
-    envoy_upstream_ms: Optional[float] = None   # x-envoy-upstream-service-time
-    envoy_attempt_count: int = 1    # x-envoy-attempt-count
-    via_istio: bool = False         # server: istio-envoy
+    canary_version: str = ""  # value of x-canary-version (or equivalent)
+    envoy_upstream_ms: Optional[float] = None  # x-envoy-upstream-service-time
+    envoy_attempt_count: int = 1  # x-envoy-attempt-count
+    via_istio: bool = False  # server: istio-envoy
 
 
 @dataclass
@@ -73,12 +74,12 @@ class EndpointMetrics:
         self.endpoint = endpoint
         self.latency = LatencyStats()
         self.total: int = 0
-        self.success: int = 0         # 2xx
-        self.client_error: int = 0    # 4xx
-        self.server_error: int = 0    # 5xx
+        self.success: int = 0  # 2xx
+        self.client_error: int = 0  # 4xx
+        self.server_error: int = 0  # 5xx
         self.timeout: int = 0
-        self.retried: int = 0         # requests where attempt_count > 1
-        self.retry_total: int = 0     # sum of extra attempts
+        self.retried: int = 0  # requests where attempt_count > 1
+        self.retry_total: int = 0  # sum of extra attempts
         self.idempotency_hits: int = 0
         self.auth_failures: int = 0
         self.status_codes: dict[int, int] = defaultdict(int)

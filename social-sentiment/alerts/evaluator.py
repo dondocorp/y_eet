@@ -5,30 +5,38 @@ Evaluates aggregated hourly data and fires alerts via Telegram.
 Also pushes structured alert payloads to Alertmanager for Prometheus routing.
 
 Alert rules:
-┌──────────────────────────────┬──────────┬─────────────────────────────────────────────────┐
-│ Alert                        │ Severity │ Condition                                       │
-├──────────────────────────────┼──────────┼─────────────────────────────────────────────────┤
-│ NegativeSentimentSpike       │ warning  │ neg_ratio > 0.40 in last 1h                     │
-│ NegativeSentimentCritical    │ critical │ neg_ratio > 0.65 in last 1h                     │
-│ MentionVolumeSpike           │ warning  │ mentions > 3× 7d median                         │
-│ ScamConcernSpike             │ critical │ scam_concern label count > 5 in last 1h         │
-│ PaymentIssueSurge            │ warning  │ payment_issue label count > 10 in last 1h       │
-│ ScrapeFailure                │ warning  │ scrape_run status=failed AND no success in 2h   │
-│ NoDataAnomaly                │ warning  │ zero relevant posts in last 2h (platform active)│
-└──────────────────────────────┴──────────┴─────────────────────────────────────────────────┘
+┌──────────────────────────────┬──────────┬──────────────────────────────────────────┐
+│ Alert                        │ Severity │ Condition                                │
+├──────────────────────────────┼──────────┼──────────────────────────────────────────┤
+│ NegativeSentimentSpike       │ warning  │ neg_ratio > 0.40 in last 1h              │
+│ NegativeSentimentCritical    │ critical │ neg_ratio > 0.65 in last 1h              │
+│ MentionVolumeSpike           │ warning  │ mentions > 3× 7d median                  │
+│ ScamConcernSpike             │ critical │ scam_concern label count > 5 in last 1h  │
+│ PaymentIssueSurge            │ warning  │ payment_issue count > 10 in last 1h      │
+│ ScrapeFailure                │ warning  │ scrape_run: failed, no success in 2h     │
+│ NoDataAnomaly                │ warning  │ zero relevant posts in last 2h           │
+└──────────────────────────────┴──────────┴──────────────────────────────────────────┘
 
 Suppression: same alert_id suppressed for ALERT_SUPPRESSION_MINUTES.
 Dedup key: f"{alert_name}:{platform}:{brand_query}:{hour_bucket_truncated}"
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
-import time
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import datetime, timezone
 
+from config.settings import (
+    ALERT_MENTION_SPIKE_MULTIPLIER,
+    ALERT_NEG_RATIO_THRESHOLD,
+    ALERT_SCAM_COUNT_THRESHOLD,
+    ALERT_SUPPRESSION_MINUTES,
+    BRAND_QUERIES,
+)
+from metrics.exporter import METRICS
+from observability.tracer import get_tracer
 from storage.db import (
     fetch_hourly_aggregates,
     insert_alert_event,
@@ -36,16 +44,8 @@ from storage.db import (
     transaction,
     utcnow,
 )
-from alerts.sender import send_telegram_alert, send_alertmanager
-from metrics.exporter import METRICS
-from observability.tracer import get_tracer
-from config.settings import (
-    ALERT_NEG_RATIO_THRESHOLD,
-    ALERT_MENTION_SPIKE_MULTIPLIER,
-    ALERT_SCAM_COUNT_THRESHOLD,
-    ALERT_SUPPRESSION_MINUTES,
-    BRAND_QUERIES,
-)
+
+from alerts.sender import send_alertmanager, send_telegram_alert
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer()
@@ -87,25 +87,30 @@ def _fire(
     alert_id = _dedup_key(alert_name, platform, brand_query)
 
     if _is_suppressed(alert_id):
-        logger.debug("alert_suppressed", extra={"alert_id": alert_id, "alert_name": alert_name})
+        logger.debug(
+            "alert_suppressed", extra={"alert_id": alert_id, "alert_name": alert_name}
+        )
         return
 
     payload = {
-        "alert_id":      alert_id,
-        "alert_name":    alert_name,
-        "severity":      severity,
-        "platform":      platform,
-        "brand_query":   brand_query,
-        "message":       message,
+        "alert_id": alert_id,
+        "alert_name": alert_name,
+        "severity": severity,
+        "platform": platform,
+        "brand_query": brand_query,
+        "message": message,
         "trigger_value": trigger_value,
-        "threshold":     threshold,
-        "fired_at":      utcnow(),
+        "threshold": threshold,
+        "fired_at": utcnow(),
         **(extra or {}),
     }
 
-    inserted = insert_alert_event({
-        **payload, "payload": payload,
-    })
+    inserted = insert_alert_event(
+        {
+            **payload,
+            "payload": payload,
+        }
+    )
     if not inserted:
         return  # race condition — already fired by concurrent run
 
@@ -134,17 +139,20 @@ def _fire(
 
 # ── Alert rules ───────────────────────────────────────────────────────────────
 
+
 def evaluate_sentiment_alerts(brand_query: str, platform: str) -> None:
     rows = fetch_hourly_aggregates(brand_query, platform, hours=2)
     if not rows:
         return
 
     last = rows[-1]
-    neg_ratio    = last["neg_ratio"] or 0.0
-    rel_posts    = last["relevant_posts"] or 0
-    derived_raw  = last["top_derived_labels"] or "{}"
+    neg_ratio = last["neg_ratio"] or 0.0
+    rel_posts = last["relevant_posts"] or 0
+    derived_raw = last["top_derived_labels"] or "{}"
     try:
-        derived: dict = json.loads(derived_raw) if isinstance(derived_raw, str) else derived_raw
+        derived: dict = (
+            json.loads(derived_raw) if isinstance(derived_raw, str) else derived_raw
+        )
     except Exception:
         derived = {}
 
@@ -218,8 +226,8 @@ def evaluate_mention_spike(brand_query: str, platform: str) -> None:
     if len(rows) < 4:
         return
 
-    counts   = [r["relevant_posts"] or 0 for r in rows]
-    current  = counts[-1]
+    counts = [r["relevant_posts"] or 0 for r in rows]
+    current = counts[-1]
     baseline = sorted(counts[:-1])[len(counts[:-1]) // 2]  # median
 
     if baseline > 0 and current >= baseline * ALERT_MENTION_SPIKE_MULTIPLIER:
@@ -232,7 +240,8 @@ def evaluate_mention_spike(brand_query: str, platform: str) -> None:
                 f"[WARNING] {brand_query.upper()} on {platform}: "
                 f"Mention spike detected. {current} mentions vs "
                 f"median baseline {baseline} "
-                f"({current/baseline:.1f}× — threshold: {ALERT_MENTION_SPIKE_MULTIPLIER}×)"
+                f"({current / baseline:.1f}× — "
+                f"threshold: {ALERT_MENTION_SPIKE_MULTIPLIER}×)"
             ),
             trigger_value=float(current),
             threshold=float(baseline * ALERT_MENTION_SPIKE_MULTIPLIER),
@@ -291,6 +300,7 @@ def evaluate_scraper_health() -> None:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 def run_alert_evaluation() -> None:
     with tracer.start_as_current_span("evaluate_alerts"):
         for brand_query in BRAND_QUERIES:
@@ -303,5 +313,6 @@ def run_alert_evaluation() -> None:
 
 if __name__ == "__main__":
     import logging as _l
+
     _l.basicConfig(level="INFO")
     run_alert_evaluation()
