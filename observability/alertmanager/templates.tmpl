@@ -1,0 +1,23 @@
+{{ define "yeet.slack.title" -}}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]
+{{- if .CommonLabels.service }} [{{ .CommonLabels.service }}]{{ end }}
+{{- if .CommonLabels.alertname }} {{ .CommonLabels.alertname }}{{ end }}
+{{- end }}
+
+{{ define "yeet.slack.color" -}}
+{{- if eq .Status "resolved" }}good
+{{- else if eq .CommonLabels.severity "critical" }}danger
+{{- else if eq .CommonLabels.severity "warning" }}warning
+{{- else }}#439FE0{{ end }}
+{{- end }}
+
+{{ define "yeet.slack.body" -}}
+{{ range .Alerts }}
+*{{ .Annotations.summary }}*
+{{ if .Annotations.description }}> {{ .Annotations.description }}{{ end }}
+*Labels:* service=`{{ .Labels.service }}` severity=`{{ .Labels.severity }}`
+{{ if .Annotations.runbook }}*Runbook:* {{ .Annotations.runbook }}{{ end }}
+{{ if .Annotations.dashboard }}*Dashboard:* {{ .Annotations.dashboard }}{{ end }}
+*Started:* {{ .StartsAt | since }}
+{{ end }}
+{{- end }}

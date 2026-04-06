@@ -4,6 +4,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyCors from '@fastify/cors';
 import fastifySensible from '@fastify/sensible';
 import fastifyRateLimit from '@fastify/rate-limit';
+import { context, trace, isSpanContextValid } from '@opentelemetry/api';
 
 import { config } from './config';
 import { registerRequestMiddleware } from './middleware/requestId';
@@ -24,6 +25,20 @@ export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: {
       level: config.LOG_LEVEL,
+      formatters: {
+        level(label) { return { level: label }; },
+      },
+      timestamp: () => `,"timestamp":"${new Date().toISOString()}"`,
+      mixin() {
+        const span = trace.getSpan(context.active());
+        if (span) {
+          const ctx = span.spanContext();
+          if (isSpanContextValid(ctx)) {
+            return { trace_id: ctx.traceId, span_id: ctx.spanId };
+          }
+        }
+        return {};
+      },
       serializers: {
         req(req) {
           return {
@@ -93,6 +108,13 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ── Global error handler ───────────────────────────────────────────────────
   fastify.setErrorHandler((error, request, reply) => {
+    // Attach OTEL trace_id to every error response for correlation
+    const activeSpan = trace.getSpan(context.active());
+    const otelTraceId = activeSpan && isSpanContextValid(activeSpan.spanContext())
+      ? activeSpan.spanContext().traceId
+      : undefined;
+    const traceId = otelTraceId ?? request.requestId;
+
     // Known application errors
     if (error instanceof AppError) {
       return reply.code(error.statusCode).send({
@@ -100,7 +122,7 @@ export async function buildApp(): Promise<FastifyInstance> {
         message: error.message,
         details: error.details,
         request_id: request.requestId,
-        trace_id: request.requestId,
+        trace_id: traceId,
       });
     }
 
@@ -111,6 +133,7 @@ export async function buildApp(): Promise<FastifyInstance> {
         message: 'Request validation failed',
         errors: error.validation,
         request_id: request.requestId,
+        trace_id: traceId,
       });
     }
 
@@ -120,6 +143,7 @@ export async function buildApp(): Promise<FastifyInstance> {
         code: 'UNAUTHORIZED',
         message: 'Invalid or expired token',
         request_id: request.requestId,
+        trace_id: traceId,
       });
     }
 
@@ -129,6 +153,7 @@ export async function buildApp(): Promise<FastifyInstance> {
         code: 'CONFLICT',
         message: 'Duplicate entry',
         request_id: request.requestId,
+        trace_id: traceId,
       });
     }
 
@@ -136,6 +161,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     fastify.log.error({
       err: error,
       request_id: request.requestId,
+      trace_id: traceId,
       url: request.url,
       method: request.method,
     });
@@ -144,6 +170,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       code: 'INTERNAL_ERROR',
       message: config.NODE_ENV === 'production' ? 'Internal server error' : error.message,
       request_id: request.requestId,
+      trace_id: traceId,
     });
   });
 

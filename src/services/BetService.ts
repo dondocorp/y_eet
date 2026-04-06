@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { BetRepository } from '../repositories/BetRepository';
 import { UserRepository } from '../repositories/UserRepository';
 import { WalletService } from './WalletService';
@@ -19,8 +20,12 @@ import {
   betPlacementsTotal,
   betSettlementsTotal,
   betPlacementDuration,
+  betSettlementDuration,
+  betVoidsTotal,
   bettingVolumeUsd,
 } from '../telemetry/metrics';
+
+const tracer = trace.getTracer('yeet-bet-service');
 
 export interface PlaceBetParams {
   userId: string;
@@ -58,6 +63,29 @@ export class BetService {
   }
 
   async placeBet(params: PlaceBetParams): Promise<BetResult> {
+    return tracer.startActiveSpan('bet.place', async (span) => {
+      span.setAttributes({
+        'bet.game_id': params.gameId,
+        'bet.currency': params.currency,
+        'bet.type': params.betType,
+        'bet.amount_usd': parseFloat(params.amount),
+        'bet.idempotency_key': params.idempotencyKey,
+        'user.id': params.userId,
+        'bet.has_session': Boolean(params.gameSessionId),
+      });
+      try {
+        return await this._placeBetInternal(params, span);
+      } catch (err) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+        span.recordException(err as Error);
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async _placeBetInternal(params: PlaceBetParams, span: ReturnType<typeof tracer.startSpan>): Promise<BetResult> {
     const start = Date.now();
 
     // ── 1. Idempotency check ───────────────────────────────────────────────
@@ -65,6 +93,7 @@ export class BetService {
     if (existingBet) {
       const wallet = await this.walletService.getBalance(params.userId);
       betPlacementsTotal.add(1, { status: 'idempotency_hit', game_id: params.gameId });
+      span.setAttribute('bet.idempotency_hit', true);
       return { bet: existingBet, walletBalanceAfter: wallet.balance };
     }
 
@@ -158,9 +187,15 @@ export class BetService {
     betPlacementDuration.record(duration);
     bettingVolumeUsd.add(stake, { game_id: params.gameId });
 
-    // Suppress unused variable warning
-    void reservationKey;
+    span.setAttributes({
+      'bet.id': settledBet.betId,
+      'bet.status': settledBet.status,
+      'bet.risk_score': riskScore,
+      'bet.risk_decision': riskDecision,
+      'bet.duration_ms': duration,
+    });
 
+    void reservationKey;
     return { bet: settledBet, walletBalanceAfter: wallet.balance };
   }
 
@@ -197,13 +232,18 @@ export class BetService {
       status: 'settled',
     });
 
-    betSettlementsTotal.add(1, {
-      outcome: isWin ? 'win' : 'loss',
-      game_id: bet.gameId,
-    });
+    const settleDuration = Date.now() - (bet.placedAt ? new Date(bet.placedAt).getTime() : Date.now());
+    betSettlementsTotal.add(1, { outcome: isWin ? 'win' : 'loss', game_id: bet.gameId });
+    betSettlementDuration.record(settleDuration);
 
-    void stake; // suppress unused warning
+    void stake;
     return settled;
+  }
+
+  async voidBetWithMetrics(betId: string, requestingUserId: string, isAdmin: boolean, reason = 'admin'): Promise<Bet> {
+    const bet = await this.voidBet(betId, requestingUserId, isAdmin);
+    betVoidsTotal.add(1, { reason, game_id: bet.gameId });
+    return bet;
   }
 
   async voidBet(betId: string, requestingUserId: string, isAdmin: boolean): Promise<Bet> {

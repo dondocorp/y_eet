@@ -1,0 +1,90 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+  log_level: warn
+
+common:
+  path_prefix: /var/loki
+  replication_factor: 1
+  storage:
+    s3:
+      endpoint: s3.amazonaws.com
+      region: ${AWS_REGION}
+      bucketnames: ${LOKI_S3_BUCKET}
+      insecure: false
+  ring:
+    kvstore:
+      store: memberlist
+
+memberlist:
+  join_members:
+    - loki-memberlist
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: loki_index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /var/loki/index
+    cache_location: /var/loki/cache
+    cache_ttl: 24h
+
+# Retention: 30 days hot, 12 months via S3 lifecycle policy
+limits_config:
+  retention_period: 744h          # 31 days hot retention
+  ingestion_rate_mb: 20
+  ingestion_burst_size_mb: 30
+  max_streams_per_user: 10000
+  max_label_names_per_series: 15   # Keep cardinality low — labels are NOT fields
+  max_label_value_length: 2048
+  max_entries_limit_per_query: 50000
+  max_query_series: 5000
+  split_queries_by_interval: 30m
+  query_timeout: 300s
+  # Reject streams with too many labels to prevent cardinality explosion
+  max_streams_matchers_per_query: 1000
+
+chunk_store_config:
+  max_look_back_period: 0s
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 744h
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules
+  rule_path: /var/loki/rules-temp
+  alertmanager_url: http://alertmanager.monitoring.svc.cluster.local:9093
+  ring:
+    kvstore:
+      store: memberlist
+  enable_api: true
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+frontend:
+  log_queries_longer_than: 5s
+  compress_responses: true
+
+compactor:
+  working_directory: /var/loki/boltdb-shipper-compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  delete_request_store: s3

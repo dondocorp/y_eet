@@ -1,0 +1,89 @@
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9095
+  log_level: warn
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    zipkin:
+      endpoint: 0.0.0.0:9411
+
+ingester:
+  max_block_duration: 5m
+  trace_idle_period: 10s
+  flush_check_period: 10s
+  lifecycler:
+    ring:
+      kvstore:
+        store: memberlist
+      replication_factor: 1
+
+compactor:
+  compaction:
+    block_retention: 168h       # 7 days hot (S3 Standard)
+  ring:
+    kvstore:
+      store: memberlist
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: ${K8S_CLUSTER_NAME}
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus-operated.monitoring.svc.cluster.local:9090/api/v1/write
+        send_exemplars: true
+  # Generate RED metrics from traces (service graph + span metrics)
+  processors:
+    - service-graphs
+    - span-metrics
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: ${TEMPO_S3_BUCKET}
+      endpoint: s3.amazonaws.com
+      region: ${AWS_REGION}
+      # 7-day hot tier managed here; cold via S3 lifecycle to Glacier IR
+    pool:
+      max_workers: 100
+      queue_depth: 10000
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+memberlist:
+  join_members:
+    - tempo-gossip-ring
+
+querier:
+  frontend_worker:
+    frontend_address: tempo-query-frontend.monitoring.svc.cluster.local:9095
+
+query_frontend:
+  search:
+    duration_slo: 5s
+    throughput_bytes_slo: 1.073741824e+09
+  trace_by_id:
+    duration_slo: 5s
+
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 15000000    # 15 MB/s per tenant
+      burst_size_bytes: 20000000
+      max_traces_per_user: 100000
+    read:
+      max_bytes_per_tag_values_query: 5000000
+    global:
+      max_bytes_per_trace: 5000000  # 5MB max per trace

@@ -1,0 +1,78 @@
+---
+# Blackbox Exporter — HTTP/TCP endpoint probing
+# Scraped by Prometheus ServiceMonitor; results exposed as probe_* metrics
+modules:
+  # ── HTTP 200 with TLS validation ─────────────────────────────────────────
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      fail_if_ssl: false
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: ip4
+
+  # ── Health endpoint probe (no auth) ──────────────────────────────────────
+  http_health:
+    prober: http
+    timeout: 3s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '"status"\s*:\s*"(ok|ready)"'
+
+  # ── POST endpoint returning 2xx/3xx ──────────────────────────────────────
+  http_post_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      method: POST
+      valid_status_codes: [200, 201, 202, 204]
+      headers:
+        Content-Type: application/json
+        x-synthetic: "true"
+
+  # ── TCP port reachability ─────────────────────────────────────────────────
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+
+---
+# Prometheus scrape config for Blackbox probes
+# Add to prometheus-additional-scrape-configs secret
+additional_scrape_configs:
+  - job_name: blackbox-http-health
+    metrics_path: /probe
+    params:
+      module: [http_health]
+    static_configs:
+      - targets:
+          - http://yeet-platform-api.default.svc.cluster.local:8080/health/live
+          - http://yeet-platform-api.default.svc.cluster.local:8080/health/ready
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.monitoring.svc.cluster.local:9115
+
+  - job_name: blackbox-http-api
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          # Public API smoke probes
+          - https://api.yeet.com/health/live
+          - https://api.yeet.com/health/ready
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.monitoring.svc.cluster.local:9115

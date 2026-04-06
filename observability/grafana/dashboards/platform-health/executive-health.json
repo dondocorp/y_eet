@@ -1,0 +1,221 @@
+{
+  "uid": "executive-health",
+  "title": "[PLATFORM] Executive Health",
+  "description": "Leadership view — SLO burn rates, incident count, P99 latency, deployment frequency",
+  "tags": ["platform", "executive", "slo", "owner:platform-sre"],
+  "refresh": "5m",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "custom",
+        "current": { "value": "prod" },
+        "options": [
+          { "text": "prod", "value": "prod" },
+          { "text": "staging", "value": "staging" }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Auth SLO — 7d Error Budget Remaining",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "1 - clamp_min(1 - (sum(rate(yeet_http_requests_total{route=~\"/api/v1/auth/.*\", status=~\"5..\"}[7d])) / sum(rate(yeet_http_requests_total{route=~\"/api/v1/auth/.*\"}[7d]))) / 0.001, 0)",
+        "legendFormat": "Auth budget"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "green", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Bet Placement SLO — 7d Error Budget",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "1 - clamp_min(1 - (sum(rate(istio_requests_total{destination_service_name=\"bet-svc\", response_code=~\"5..\"}[7d])) / sum(rate(istio_requests_total{destination_service_name=\"bet-svc\"}[7d]))) / 0.005, 0)",
+        "legendFormat": "Bet budget"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "green", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Wallet SLO — 7d Error Budget",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "1 - clamp_min(1 - (sum(rate(istio_requests_total{destination_service_name=\"wallet-svc\", response_code=~\"5..\"}[7d])) / sum(rate(istio_requests_total{destination_service_name=\"wallet-svc\"}[7d]))) / 0.001, 0)",
+        "legendFormat": "Wallet budget"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "green", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active P1/P2 Incidents",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "count(ALERTS{severity=~\"critical|warning\", alertstate=\"firing\"}) or vector(0)",
+        "legendFormat": "Active alerts"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Platform Request Rate — All Services",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(istio_requests_total{destination_service_namespace!=\"monitoring\"}[5m])) by (destination_service_name)",
+          "legendFormat": "{{ destination_service_name }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "P99 Latency — Bet Placement",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(yeet_bet_placement_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "Bet P99"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(yeet_wallet_transfer_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "Wallet transfer P99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 2000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Betting Volume (24h, USD)",
+      "gridPos": { "x": 0, "y": 12, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "increase(yeet_betting_volume_usd_total[24h])",
+        "legendFormat": "Volume"
+      }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Bet Placements (24h)",
+      "gridPos": { "x": 6, "y": 12, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "increase(yeet_bet_placements_total{status=\"accepted\"}[24h])",
+        "legendFormat": "Bets placed"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Auth Tokens Issued (24h)",
+      "gridPos": { "x": 12, "y": 12, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "increase(yeet_auth_tokens_issued_total[24h])",
+        "legendFormat": "Tokens"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Active Game Sessions",
+      "gridPos": { "x": 18, "y": 12, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "yeet_active_game_sessions",
+        "legendFormat": "Sessions"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ]
+}
