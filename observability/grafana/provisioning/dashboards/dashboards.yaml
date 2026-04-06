@@ -1,0 +1,46 @@
+apiVersion: 1
+
+providers:
+  - name: platform-health
+    orgId: 1
+    folder: "Platform Health"
+    folderUid: platform-health
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/platform-health
+
+  - name: services
+    orgId: 1
+    folder: "Services"
+    folderUid: services
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/services
+
+  - name: infrastructure
+    orgId: 1
+    folder: "Infrastructure"
+    folderUid: infrastructure
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/infrastructure
+
+  - name: reliability
+    orgId: 1
+    folder: "Reliability"
+    folderUid: reliability
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/reliability

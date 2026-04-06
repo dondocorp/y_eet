@@ -1,0 +1,169 @@
+---
+# Fluent Bit DaemonSet — tails pod logs, enriches with K8s metadata, ships to Loki
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: fluent-bit
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fluent-bit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fluent-bit
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2020"
+    spec:
+      serviceAccountName: fluent-bit
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: fluent-bit
+          image: cr.fluentbit.io/fluent/fluent-bit:3.0.7
+          ports:
+            - containerPort: 2020
+              name: metrics
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 20m
+              memory: 32Mi
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: LOKI_URL
+              value: "http://loki-gateway.monitoring.svc.cluster.local"
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: monitoring
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Daemon        Off
+        Log_Level     warn
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    # ── App container logs ──────────────────────────────────────────────────
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        # Exclude monitoring namespace — Loki/Prometheus/etc own logs create noise
+        Exclude_Path      /var/log/containers/*monitoring*.log,/var/log/containers/*kube-system*.log
+        Parser            cri
+        Tag               kube.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+        DB                /var/log/flb_kube.db
+
+    # ── Istio access logs (separate stream, separate label) ────────────────
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*istio-proxy*.log
+        Parser            json
+        Tag               istio.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     20MB
+        DB                /var/log/flb_istio.db
+
+    # ── Kubernetes metadata enrichment ─────────────────────────────────────
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude Off
+        # Only keep useful labels (keep cardinality under control)
+        Labels              On
+        Annotations         Off
+
+    # ── Parse JSON app logs and promote trace_id as a field ───────────────
+    [FILTER]
+        Name    modify
+        Match   kube.*
+        # Rename kubernetes.namespace_name → namespace for Loki label
+        Rename  kubernetes.namespace_name namespace
+        Rename  kubernetes.pod_name       pod
+        Rename  kubernetes.container_name container
+
+    # ── Drop noisy health check logs from app ──────────────────────────────
+    [FILTER]
+        Name   grep
+        Match  kube.*
+        Exclude $log_processed['url'] /health/(live|ready|startup)
+
+    # ── Loki output — app logs ─────────────────────────────────────────────
+    [OUTPUT]
+        Name              loki
+        Match             kube.*
+        Host              loki-gateway.monitoring.svc.cluster.local
+        Port              80
+        Labels            job=app-logs, namespace=$namespace, pod=$pod, environment=${NODE_ENV}
+        # trace_id is a log field (not a label) — used for Grafana trace linking
+        Label_keys        $level
+        Remove_keys       kubernetes, stream
+        Line_format       json
+        Auto_Kubernetes_Labels Off
+
+    # ── Loki output — Istio access logs ───────────────────────────────────
+    [OUTPUT]
+        Name              loki
+        Match             istio.*
+        Host              loki-gateway.monitoring.svc.cluster.local
+        Port              80
+        Labels            job=istio-access-log, environment=${NODE_ENV}
+        Line_format       json
+
+  parsers.conf: |
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+        Name        json
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z

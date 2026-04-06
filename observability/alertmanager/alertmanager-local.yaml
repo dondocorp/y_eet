@@ -1,0 +1,20 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: "null"
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    - matchers:
+        - severity = critical
+      receiver: console-critical
+
+receivers:
+  - name: "null"
+  - name: console-critical
+    webhook_configs:
+      - url: http://localhost:9999/alert   # placeholder — update with real webhook for local dev
+        send_resolved: true

@@ -1,0 +1,41 @@
+---
+# Strict mTLS mesh-wide — no plaintext service-to-service traffic
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mtls
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+
+---
+# Allow Prometheus scraper to reach :15090 (Istio metrics) without mTLS
+# Prometheus scraper runs in monitoring namespace with its own service account
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: allow-prometheus-scrape
+  namespace: monitoring
+spec:
+  mtls:
+    mode: PERMISSIVE
+
+---
+# Allow OTEL Collector daemonset to receive OTLP from app sidecars
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: allow-otel-collector
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otelcol
+  portLevelMtls:
+    4317:
+      mode: PERMISSIVE
+    4318:
+      mode: PERMISSIVE
+    9411:
+      mode: PERMISSIVE

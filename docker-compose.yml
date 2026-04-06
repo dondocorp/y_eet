@@ -1,4 +1,5 @@
 services:
+  # ── Infrastructure ─────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     environment:
@@ -25,24 +26,119 @@ services:
       timeout: 3s
       retries: 5
 
+  # ── Application ───────────────────────────────────────────────────────────
   api:
     build:
       context: .
       target: dev
     ports:
-      - "${PORT}:${PORT}"
-      - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
+      - "${PORT:-8080}:${PORT:-8080}"
+      - "${PROMETHEUS_PORT:-9464}:${PROMETHEUS_PORT:-9464}"
     volumes:
       - ./src:/app/src
       - ./tsconfig.json:/app/tsconfig.json
     env_file:
       - .env
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      K8S_CLUSTER_NAME: local
+      K8S_NAMESPACE: local
+      K8S_POD_NAME: local
+      K8S_NODE_NAME: local
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     restart: unless-stopped
+
+  # ── Observability Stack ────────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.97.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "9411:9411"   # Zipkin (Istio)
+      - "8888:8888"   # Collector self-metrics
+    volumes:
+      - ./observability/collector/otelcol-local.yaml:/etc/otelcol/config.yaml
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus/prometheus-local.yaml:/etc/prometheus/prometheus.yaml
+      - ./observability/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./observability/alertmanager/alertmanager-local.yaml:/etc/alertmanager/alertmanager.yaml
+
+  loki:
+    image: grafana/loki:3.0.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./observability/loki/loki-local.yaml:/etc/loki/config.yaml
+      - loki_data:/var/loki
+
+  tempo:
+    image: grafana/tempo:2.4.1
+    ports:
+      - "3200:3200"
+      - "14268:14268"
+    command: -config.file=/etc/tempo/config.yaml
+    volumes:
+      - ./observability/tempo/tempo-local.yaml:/etc/tempo/config.yaml
+      - tempo_data:/var/tempo
+
+  grafana:
+    image: grafana/grafana-oss:10.4.2
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_FEATURE_TOGGLES_ENABLE: traceToMetrics
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./observability/synthetic/blackbox-local.yaml:/etc/blackbox_exporter/config.yml
 
 volumes:
   postgres_data:
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:

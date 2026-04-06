@@ -1,0 +1,54 @@
+---
+# Patch istio-system/istio ConfigMap to configure global tracing provider
+# Apply with: kubectl patch configmap istio -n istio-system --patch-file mesh-config-patch.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio
+  namespace: istio-system
+data:
+  mesh: |
+    accessLogFile: /dev/stdout
+    accessLogEncoding: JSON
+    accessLogFormat: |
+      {
+        "timestamp": "%START_TIME%",
+        "method": "%REQ(:METHOD)%",
+        "path": "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%",
+        "protocol": "%PROTOCOL%",
+        "response_code": "%RESPONSE_CODE%",
+        "response_flags": "%RESPONSE_FLAGS%",
+        "bytes_received": "%BYTES_RECEIVED%",
+        "bytes_sent": "%BYTES_SENT%",
+        "duration_ms": "%DURATION%",
+        "upstream_service_time": "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%",
+        "upstream_cluster": "%UPSTREAM_CLUSTER%",
+        "x_forwarded_for": "%REQ(X-FORWARDED-FOR)%",
+        "user_agent": "%REQ(USER-AGENT)%",
+        "request_id": "%REQ(X-REQUEST-ID)%",
+        "trace_id": "%REQ(X-B3-TRACEID)%",
+        "authority": "%REQ(:AUTHORITY)%",
+        "upstream_host": "%UPSTREAM_HOST%",
+        "source_namespace": "%ENVIRONMENT(ISTIO_META_NAMESPACE)%",
+        "source_app": "%ENVIRONMENT(ISTIO_META_APP)%"
+      }
+    enableTracing: true
+    defaultConfig:
+      tracing:
+        sampling: 10
+        zipkin:
+          address: otel-gateway.monitoring.svc.cluster.local:9411
+        custom_tags:
+          service.version:
+            environment:
+              name: SERVICE_VERSION
+              defaultValue: unknown
+      proxyStatsMatcher:
+        inclusionRegexps:
+          - ".*circuit_breakers.*"
+          - ".*upstream_rq.*"
+          - ".*downstream_rq.*"
+          - ".*ssl.*"
+          - ".*retry.*"
+    enablePrometheusMerge: true
+    trustDomain: "cluster.local"

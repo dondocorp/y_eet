@@ -1,0 +1,319 @@
+name: Observability Infrastructure
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'observability/**'
+      - 'terraform/**'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'observability/**'
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: staging
+        type: choice
+        options: [staging, prod]
+      apply:
+        description: "Apply Terraform (default: plan only)"
+        required: false
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: observability-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Validate all observability configs
+  # ─────────────────────────────────────────────────────────────────────────────
+  validate-configs:
+    name: Validate Observability Configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate OTEL Collector configs
+        run: |
+          for cfg in observability/collector/otelcol-local.yaml; do
+            echo "Validating $cfg..."
+            docker run --rm \
+              -v ${{ github.workspace }}/observability/collector:/cfg \
+              otel/opentelemetry-collector-contrib:0.97.0 \
+              validate --config=/cfg/$(basename $cfg)
+          done
+
+      - name: Validate Prometheus rules
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/observability/prometheus:/etc/prometheus \
+            prom/prometheus:v2.51.0 \
+            promtool check rules \
+              /etc/prometheus/rules/latency-errors.yaml \
+              /etc/prometheus/rules/slo-burn-rate.yaml \
+              /etc/prometheus/rules/queue-infra.yaml
+
+      - name: Validate Alertmanager config
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/observability/alertmanager:/etc/alertmanager \
+            prom/alertmanager:v0.27.0 \
+            amtool check-config /etc/alertmanager/alertmanager-local.yaml
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          node -e "
+            const fs = require('fs');
+            const {execSync} = require('child_process');
+            const files = execSync('find observability/grafana/dashboards -name \"*.json\"')
+              .toString().trim().split('\n').filter(Boolean);
+            let fail = false;
+            for (const f of files) {
+              try {
+                JSON.parse(fs.readFileSync(f, 'utf8'));
+                console.log('OK:', f);
+              } catch(e) {
+                console.error('INVALID:', f, e.message);
+                fail = true;
+              }
+            }
+            if (fail) process.exit(1);
+          "
+
+      - name: Validate Terraform format
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive terraform/
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Terraform plan
+  # ─────────────────────────────────────────────────────────────────────────────
+  terraform-plan:
+    name: Terraform Plan — ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    needs: validate-configs
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write   # OIDC for AWS
+    env:
+      TF_ENV: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TERRAFORM }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ env.TF_ENV }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/${{ env.TF_ENV }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform/environments/${{ env.TF_ENV }}
+        run: |
+          terraform plan \
+            -var="eks_cluster_name=${{ secrets.EKS_CLUSTER_STAGING }}" \
+            -var="grafana_admin_password=${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
+            -out=tfplan \
+            -no-color 2>&1 | tee plan.txt
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ env.TF_ENV }}-${{ github.sha }}
+          path: terraform/environments/${{ env.TF_ENV }}/tfplan
+          retention-days: 7
+
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/environments/${{ env.TF_ENV }}/plan.txt', 'utf8');
+            const truncated = plan.length > 60000
+              ? plan.substring(0, 60000) + '\n...(truncated)'
+              : plan;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan — \`${{ env.TF_ENV }}\`\n\`\`\`\n${truncated}\n\`\`\``
+            });
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Terraform apply (manual trigger only, environment protection required)
+  # ─────────────────────────────────────────────────────────────────────────────
+  terraform-apply:
+    name: Terraform Apply — ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.apply == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_ENV: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TERRAFORM }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ env.TF_ENV }}-${{ github.sha }}
+          path: terraform/environments/${{ env.TF_ENV }}
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ env.TF_ENV }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/${{ env.TF_ENV }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Publish Grafana annotation for infra change
+        run: |
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_API_TOKEN }}" \
+            -d "{
+              \"text\": \"Observability infra applied: ${{ env.TF_ENV }} by ${{ github.actor }} (${{ github.sha }})\",
+              \"tags\": [\"infra\",\"terraform\",\"${{ env.TF_ENV }}\"]
+            }" \
+            ${{ secrets.GRAFANA_URL }}/api/annotations || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Deploy Grafana dashboards (separate from Terraform — fast path)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-dashboards:
+    name: Deploy Grafana Dashboards
+    runs-on: ubuntu-latest
+    needs: validate-configs
+    if: |
+      github.ref == 'refs/heads/master' &&
+      github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push dashboards via Grafana API
+        run: |
+          GRAFANA_URL="${{ secrets.GRAFANA_URL }}"
+          TOKEN="${{ secrets.GRAFANA_API_TOKEN }}"
+
+          # Create/update folders
+          for folder in "Platform Health:platform-health" "Services:services" "Infrastructure:infrastructure" "Reliability:reliability"; do
+            TITLE="${folder%%:*}"
+            UID="${folder##*:}"
+            curl -sf -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $TOKEN" \
+              -d "{\"uid\": \"$UID\", \"title\": \"$TITLE\"}" \
+              "$GRAFANA_URL/api/folders" || true
+          done
+
+          # Push each dashboard
+          find observability/grafana/dashboards -name "*.json" | while read -r f; do
+            # Determine folder from path
+            FOLDER=$(echo "$f" | sed 's|observability/grafana/dashboards/||' | cut -d/ -f1)
+            FOLDER_UID=$(echo "$FOLDER" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+            echo "Pushing $f to folder $FOLDER_UID..."
+            PAYLOAD=$(node -e "
+              const d = JSON.parse(require('fs').readFileSync('$f'));
+              // Remove id to allow upsert
+              delete d.id;
+              console.log(JSON.stringify({
+                dashboard: d,
+                folderUid: '$FOLDER_UID',
+                overwrite: true,
+                message: 'Deployed from GitHub Actions: ${{ github.sha }}'
+              }));
+            ")
+
+            STATUS=$(curl -sf -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $TOKEN" \
+              -d "$PAYLOAD" \
+              "$GRAFANA_URL/api/dashboards/db" \
+              -w "%{http_code}" -o /dev/null)
+
+            echo "  → HTTP $STATUS"
+          done
+
+          echo "Dashboard deployment complete."
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Deploy PrometheusRules to cluster
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-prometheus-rules:
+    name: Deploy Prometheus Rules
+    runs-on: ubuntu-latest
+    needs: validate-configs
+    if: |
+      github.ref == 'refs/heads/master' &&
+      github.event_name == 'push'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_PROD }} \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Apply PrometheusRules
+        run: |
+          kubectl apply -f observability/prometheus/rules/ -n monitoring
+          echo "PrometheusRules applied."
+
+      - name: Apply Istio telemetry config
+        run: |
+          kubectl apply -f observability/istio/telemetry.yaml
+          kubectl apply -f observability/istio/peer-authentication.yaml
+          echo "Istio observability config applied."

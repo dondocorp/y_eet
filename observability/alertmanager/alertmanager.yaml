@@ -1,0 +1,157 @@
+global:
+  resolve_timeout: 5m
+  # Slack webhook — set via secret in K8s
+  slack_api_url: "${SLACK_WEBHOOK_URL}"
+  pagerduty_url: "https://events.pagerduty.com/v2/enqueue"
+
+# ── Inhibition rules — suppress child alerts when parent fires ────────────────
+inhibit_rules:
+  # Suppress all warnings when a critical fires for the same service
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal:
+      - service
+
+  # Suppress service alerts when node is down (infra root cause)
+  - source_matchers:
+      - alertname = NodeDown
+    target_matchers:
+      - alertname =~ "BetService.*|WalletService.*|AuthService.*"
+    equal:
+      - instance
+
+  # Suppress SLO burn-rate alerts during maintenance windows
+  - source_matchers:
+      - alertname = MaintenanceWindowActive
+    target_matchers:
+      - slo =~ ".+"
+
+# ── Templates ─────────────────────────────────────────────────────────────────
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
+
+# ── Routing ───────────────────────────────────────────────────────────────────
+route:
+  # Default: group by alertname + service, 30s group wait
+  receiver: slack-warnings
+  group_by:
+    - alertname
+    - service
+    - namespace
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts with page=true → PagerDuty immediately
+    - matchers:
+        - severity = critical
+        - page = true
+      receiver: pagerduty-critical
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+      continue: true  # also send to Slack
+
+    # All critical → Slack critical channel
+    - matchers:
+        - severity = critical
+      receiver: slack-critical
+      group_wait: 15s
+      group_interval: 2m
+      repeat_interval: 2h
+
+    # SLO burn rate alerts → dedicated SLO channel
+    - matchers:
+        - slo =~ ".+"
+      receiver: slack-slo
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 6h
+
+    # Observability pipeline issues → platform team only
+    - matchers:
+        - team = platform
+        - alertname =~ "OTEL.*|Prometheus.*|Collector.*"
+      receiver: slack-platform
+      group_wait: 60s
+      group_interval: 10m
+      repeat_interval: 12h
+
+    # Payments team alerts
+    - matchers:
+        - team = payments
+      receiver: slack-payments
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+
+    # Warnings → low-noise warning channel (batched)
+    - matchers:
+        - severity = warning
+      receiver: slack-warnings
+      group_wait: 2m
+      group_interval: 10m
+      repeat_interval: 8h
+
+receivers:
+  - name: slack-critical
+    slack_configs:
+      - channel: "#alerts-critical"
+        send_resolved: true
+        title: '{{ template "yeet.slack.title" . }}'
+        text: '{{ template "yeet.slack.body" . }}'
+        color: '{{ template "yeet.slack.color" . }}'
+        actions:
+          - type: button
+            text: "Runbook"
+            url: '{{ (index .Alerts 0).Annotations.runbook }}'
+          - type: button
+            text: "Dashboard"
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+
+  - name: slack-warnings
+    slack_configs:
+      - channel: "#alerts-warnings"
+        send_resolved: true
+        title: '{{ template "yeet.slack.title" . }}'
+        text: '{{ template "yeet.slack.body" . }}'
+        color: '{{ template "yeet.slack.color" . }}'
+
+  - name: slack-slo
+    slack_configs:
+      - channel: "#slo-burn-rates"
+        send_resolved: true
+        title: '{{ template "yeet.slack.title" . }}'
+        text: '{{ template "yeet.slack.body" . }}'
+        color: '{{ template "yeet.slack.color" . }}'
+
+  - name: slack-platform
+    slack_configs:
+      - channel: "#platform-alerts"
+        send_resolved: true
+        title: '{{ template "yeet.slack.title" . }}'
+        text: '{{ template "yeet.slack.body" . }}'
+
+  - name: slack-payments
+    slack_configs:
+      - channel: "#payments-alerts"
+        send_resolved: true
+        title: '{{ template "yeet.slack.title" . }}'
+        text: '{{ template "yeet.slack.body" . }}'
+        color: '{{ template "yeet.slack.color" . }}'
+
+  - name: pagerduty-critical
+    pagerduty_configs:
+      - routing_key: "${PAGERDUTY_ROUTING_KEY}"
+        severity: '{{ if eq (index .Alerts 0).Labels.severity "critical" }}critical{{ else }}warning{{ end }}'
+        description: '{{ (index .Alerts 0).Annotations.summary }}'
+        details:
+          description: '{{ (index .Alerts 0).Annotations.description }}'
+          runbook: '{{ (index .Alerts 0).Annotations.runbook }}'
+          service: '{{ (index .Alerts 0).Labels.service }}'
+          environment: "production"
+
+  - name: "null"
