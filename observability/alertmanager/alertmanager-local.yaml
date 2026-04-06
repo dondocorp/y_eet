@@ -9,12 +9,39 @@ route:
   repeat_interval: 12h
   routes:
     - matchers:
+        - domain = brand-intelligence
+        - severity = critical
+      receiver: social-critical
+      group_wait: 10s
+      repeat_interval: 1h
+
+    - matchers:
+        - domain = brand-intelligence
+        - severity = warning
+      receiver: social-warning
+      group_wait: 30s
+      repeat_interval: 4h
+
+    - matchers:
         - severity = critical
       receiver: console-critical
 
 receivers:
   - name: "null"
+
   - name: console-critical
     webhook_configs:
       - url: http://localhost:9999/alert   # placeholder — update with real webhook for local dev
         send_resolved: true
+
+  # Social Sentiment — routes to Telegram via social-sentiment service push
+  # (The Python service also pushes directly; these are Prometheus-native backups)
+  - name: social-critical
+    webhook_configs:
+      - url: http://social-sentiment:9465/health   # health check placeholder
+        send_resolved: true
+
+  - name: social-warning
+    webhook_configs:
+      - url: http://social-sentiment:9465/health
+        send_resolved: false

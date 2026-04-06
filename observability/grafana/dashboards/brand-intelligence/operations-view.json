@@ -1,0 +1,188 @@
+{
+  "__inputs": [
+    { "name": "DS_PROMETHEUS", "label": "Prometheus", "type": "datasource", "pluginId": "prometheus" },
+    { "name": "DS_LOKI", "label": "Loki", "type": "datasource", "pluginId": "loki" }
+  ],
+  "title": "Brand Intelligence — Operations View",
+  "uid": "brand-intel-ops",
+  "tags": ["brand-intelligence", "social-sentiment", "operations", "oncall"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "annotations": {
+    "list": [
+      {
+        "datasource": "Prometheus",
+        "enable": true,
+        "expr": "changes(social_alerts_triggered_total[5m]) > 0",
+        "name": "Social Alerts",
+        "iconColor": "red",
+        "step": "60s"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "platform",
+        "type": "custom",
+        "label": "Platform",
+        "options": [
+          { "text": "All", "value": ".*" },
+          { "text": "Reddit", "value": "reddit" },
+          { "text": "Twitter", "value": "twitter" }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "alertlist",
+      "title": "Active Brand Alerts",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "options": {
+        "alertName": "",
+        "dashboardAlerts": false,
+        "stateFilter": { "firing": true, "pending": true },
+        "tags": ["brand-intelligence"]
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Scrape Success Rate (1h)",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "100 * (1 - rate(social_scrape_failures_total[1h]) / (rate(social_scrape_runs_total[1h]) + 0.001))",
+          "legendFormat": "Success %"
+        }
+      ],
+      "options": {
+        "unit": "percent",
+        "thresholds": {
+          "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 80 },
+            { "color": "green", "value": 95 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Posts/Hour (current)",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(social_posts_collected_total[1h]) * 3600)",
+          "legendFormat": "Posts/hour"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Noise Filter Rate",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "100 * sum(rate(social_posts_irrelevant_total[1h])) / (sum(rate(social_posts_collected_total[1h])) + 0.001)",
+          "legendFormat": "Irrelevant %"
+        }
+      ],
+      "options": { "unit": "percent" }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Negative Sentiment Ratio — Real-time",
+      "description": "Alert fires at >40% (warning) or >65% (critical)",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by (platform) (rate(social_sentiment_negative_total{platform=~\"$platform\"}[30m])) / (sum by (platform) (rate(social_sentiment_positive_total{platform=~\"$platform\"}[30m]) + rate(social_sentiment_neutral_total{platform=~\"$platform\"}[30m]) + rate(social_sentiment_negative_total{platform=~\"$platform\"}[30m])) + 0.001)",
+          "legendFormat": "neg_ratio:{{ platform }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.40 },
+              { "color": "red", "value": 0.65 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line+area" }
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Scraper Health — Runs & Failures",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by (platform) (rate(social_scrape_runs_total[5m]) * 300)",
+          "legendFormat": "runs:{{ platform }}"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by (platform) (rate(social_scrape_failures_total[5m]) * 300)",
+          "legendFormat": "failures:{{ platform }}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Pipeline Duration",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.99, sum by (stage, le) (rate(social_pipeline_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99:{{ stage }}"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.50, sum by (stage, le) (rate(social_pipeline_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50:{{ stage }}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Social Sentiment Logs",
+      "gridPos": { "x": 0, "y": 19, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "{service_name=\"social-sentiment\"} | json | level != \"debug\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}

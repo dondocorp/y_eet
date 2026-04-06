@@ -1,0 +1,114 @@
+groups:
+  - name: social_sentiment_alerts
+    interval: 60s
+    rules:
+      # ── Sentiment health ────────────────────────────────────────────────
+      - alert: SocialNegativeSentimentSpike
+        expr: |
+          (
+            rate(social_sentiment_negative_total[1h])
+            /
+            (
+              rate(social_sentiment_positive_total[1h]) +
+              rate(social_sentiment_neutral_total[1h]) +
+              rate(social_sentiment_negative_total[1h])
+              + 0.001
+            )
+          ) > 0.40
+        for: 5m
+        labels:
+          severity: warning
+          service: social-sentiment
+          domain: brand-intelligence
+        annotations:
+          summary: "Negative sentiment ratio elevated for Yeet brand"
+          description: >
+            Negative sentiment has exceeded 40% of total classified posts
+            over the last hour. Platform: {{ $labels.platform }}.
+            Current ratio: {{ $value | humanizePercentage }}.
+          runbook_url: "https://wiki.internal/runbooks/social-sentiment#negative-spike"
+
+      - alert: SocialNegativeSentimentCritical
+        expr: |
+          (
+            rate(social_sentiment_negative_total[1h])
+            /
+            (
+              rate(social_sentiment_positive_total[1h]) +
+              rate(social_sentiment_neutral_total[1h]) +
+              rate(social_sentiment_negative_total[1h])
+              + 0.001
+            )
+          ) > 0.65
+        for: 2m
+        labels:
+          severity: critical
+          service: social-sentiment
+          domain: brand-intelligence
+        annotations:
+          summary: "CRITICAL: Negative sentiment majority for Yeet brand"
+          description: >
+            Over 65% of posts about Yeet brand are negative.
+            Immediate brand response investigation required.
+
+      # ── Scraper health ──────────────────────────────────────────────────
+      - alert: SocialScraperFailureRate
+        expr: |
+          rate(social_scrape_failures_total[30m]) > 0
+          AND
+          rate(social_scrape_runs_total[30m]) > 0
+          AND
+          (
+            rate(social_scrape_failures_total[30m])
+            / rate(social_scrape_runs_total[30m])
+          ) >= 1.0
+        for: 10m
+        labels:
+          severity: warning
+          service: social-sentiment
+          domain: brand-intelligence
+        annotations:
+          summary: "Social sentiment scraper failing on {{ $labels.platform }}"
+          description: >
+            All scrape runs on {{ $labels.platform }} are failing.
+            Check browser automation and network access.
+
+      - alert: SocialScraperDown
+        expr: up{job="social-sentiment"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: social-sentiment
+          domain: brand-intelligence
+        annotations:
+          summary: "Social sentiment service is down"
+          description: "Prometheus cannot scrape social-sentiment metrics endpoint."
+
+      # ── Data freshness ───────────────────────────────────────────────────
+      - alert: SocialNoDataAnomaly
+        expr: |
+          (time() - social_pipeline_last_run_timestamp) > 7200
+        for: 5m
+        labels:
+          severity: warning
+          service: social-sentiment
+          domain: brand-intelligence
+        annotations:
+          summary: "Social sentiment pipeline has not run in 2+ hours"
+          description: >
+            The social sentiment pipeline has not completed a run in over 2 hours.
+            Scheduler or container may be down.
+
+      # ── Classifier health ────────────────────────────────────────────────
+      - alert: SocialClassifierFailureSpike
+        expr: rate(social_classifier_failures_total[15m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: social-sentiment
+          domain: brand-intelligence
+        annotations:
+          summary: "Sentiment classifier failure rate elevated"
+          description: >
+            More than 10% of classification attempts are failing.
+            Model or memory issue likely. Classifier: {{ $labels.classifier }}.
