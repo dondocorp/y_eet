@@ -1,0 +1,768 @@
+{
+  "info": {
+    "name": "Yeet Platform API",
+    "description": "Full iGaming platform API — auth, wallet, bets, game sessions, risk, feature flags, health, admin.\n\nWorkflow:\n1. Run **Auth / Login** (seed user) → access_token auto-saved\n2. Run **Wallet / Get Balance**\n3. Run **Games / Create Session**\n4. Run **Bets / Place Bet** (auto-settles for instant games)\n5. Run **Bets / Get Bet** to see outcome",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",       "value": "http://localhost:8080",                       "type": "string" },
+    { "key": "token",         "value": "",                                             "type": "string" },
+    { "key": "userId",        "value": "00000000-0000-0000-0000-000000000001",         "type": "string" },
+    { "key": "sessionId",     "value": "",                                             "type": "string" },
+    { "key": "betId",         "value": "",                                             "type": "string" },
+    { "key": "registeredEmail", "value": "",                                           "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (seed user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('token', res.access_token);",
+                  "  pm.collectionVariables.set('userId', '00000000-0000-0000-0000-000000000001');",
+                  "  console.log('Seed user token saved');",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has access_token', () => pm.expect(res.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"player1@yeet.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/token",
+            "description": "Seed user — password is Password123! — runs migrations/002_seed.sql on first boot"
+          }
+        },
+        {
+          "name": "Login (admin seed user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('token', res.access_token);",
+                  "  pm.collectionVariables.set('userId', '00000000-0000-0000-0000-000000000099');",
+                  "  console.log('Admin token saved — use this before admin-only requests');",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@yeet.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/token",
+            "description": "Admin seed user — has admin role, needed for /bets/:id/void, /bets/:id/settle, PUT /config/flags"
+          }
+        },
+        {
+          "name": "Register new user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const ts = Date.now();",
+                  "const email = `testuser_${ts}@yeet.com`;",
+                  "const username = `testuser_${ts}`;",
+                  "pm.collectionVariables.set('registeredEmail', email);",
+                  "pm.variables.set('newEmail', email);",
+                  "pm.variables.set('newUsername', username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('token', res.access_token);",
+                  "  pm.collectionVariables.set('userId', res.user_id);",
+                  "  console.log('Registered user:', res.email, '— token + userId saved');",
+                  "}",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Has user_id', () => pm.expect(res.user_id).to.be.a('string'));",
+                  "pm.test('Has access_token', () => pm.expect(res.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{newEmail}}\",\n  \"username\": \"{{newUsername}}\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "description": "Generates a unique email each run. Saves token + userId to collection variables. Run 'Login with registered user' afterwards to verify login works."
+          }
+        },
+        {
+          "name": "Login with registered user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('token', res.access_token);",
+                  "  console.log('Registered user login successful');",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has access_token', () => pm.expect(res.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registeredEmail}}\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/token",
+            "description": "Uses the email saved by 'Register new user'. Run Register first so {{registeredEmail}} is populated."
+          }
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"<paste refresh_token from login response>\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/refresh"
+          }
+        },
+        {
+          "name": "Logout (revoke session)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/revoke"
+          }
+        },
+        {
+          "name": "Validate session (internal)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/session/validate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/users/{{userId}}/profile"
+          }
+        },
+        {
+          "name": "Update profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"player1_updated\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/users/{{userId}}/profile"
+          }
+        },
+        {
+          "name": "Get responsible gaming limits",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/users/{{userId}}/limits"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "item": [
+        {
+          "name": "Get balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has balance', () => pm.expect(pm.response.json().available).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/wallet/{{userId}}/balance"
+          }
+        },
+        {
+          "name": "Get transactions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/wallet/{{userId}}/transactions?limit=20",
+              "query": [
+                { "key": "limit",  "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "type",   "value": "bet_reserve", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deposit",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [ "pm.variables.set('depositKey', 'dep_' + Date.now());" ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [ "pm.test('Status 201', () => pm.response.to.have.status(201));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{token}}" },
+              { "key": "Content-Type",   "value": "application/json" },
+              { "key": "Idempotency-Key","value": "{{depositKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"100.00\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/wallet/{{userId}}/deposit"
+          }
+        },
+        {
+          "name": "Withdraw",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [ "pm.variables.set('withdrawKey', 'wd_' + Date.now());" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{token}}" },
+              { "key": "Content-Type",   "value": "application/json" },
+              { "key": "Idempotency-Key","value": "{{withdrawKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"50.00\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/wallet/{{userId}}/withdraw"
+          }
+        },
+        {
+          "name": "Deposit — idempotency replay (same key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Replay header present', () => pm.expect(pm.response.headers.get('X-Idempotency-Replay')).to.eq('true'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{token}}" },
+              { "key": "Content-Type",   "value": "application/json" },
+              { "key": "Idempotency-Key","value": "{{depositKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"100.00\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/wallet/{{userId}}/deposit",
+            "description": "Send the same Idempotency-Key as the Deposit request. Should return the cached response with X-Idempotency-Replay: true."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Game Sessions",
+      "item": [
+        {
+          "name": "Create session (crash game)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.session_id) pm.collectionVariables.set('sessionId', res.session_id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Has server_seed_hash', () => pm.expect(res.server_seed_hash).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"game_id\": \"game_crash_v1\",\n  \"client_seed\": \"my-lucky-seed-123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/games/sessions"
+          }
+        },
+        {
+          "name": "Create session (slots game)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.session_id) pm.collectionVariables.set('sessionId', res.session_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"game_id\": \"game_slots_v1\",\n  \"client_seed\": \"my-lucky-seed-456\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/games/sessions"
+          }
+        },
+        {
+          "name": "Get session",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/games/sessions/{{sessionId}}"
+          }
+        },
+        {
+          "name": "Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/games/sessions/{{sessionId}}/heartbeat"
+          }
+        },
+        {
+          "name": "Close session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/games/sessions/{{sessionId}}/close"
+          }
+        },
+        {
+          "name": "Reveal server seed (after close)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/games/sessions/{{sessionId}}/seed-reveal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bets",
+      "item": [
+        {
+          "name": "Place bet — crash game",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [ "pm.variables.set('betKey', 'idem_' + Date.now());" ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.bet_id) pm.collectionVariables.set('betId', res.bet_id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));",
+                  "pm.test('Has bet_id', () => pm.expect(res.bet_id).to.be.a('string'));",
+                  "console.log('Bet status:', res.status, '| Payout:', res.payout);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{token}}" },
+              { "key": "Content-Type",   "value": "application/json" },
+              { "key": "Idempotency-Key","value": "{{betKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"game_session_id\": \"{{sessionId}}\",\n  \"game_id\": \"game_crash_v1\",\n  \"amount\": \"10.00\",\n  \"currency\": \"USD\",\n  \"bet_type\": \"crash\",\n  \"parameters\": {\n    \"auto_cashout\": 2.0\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/bets/place"
+          }
+        },
+        {
+          "name": "Place bet — slots game",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [ "pm.variables.set('betKey', 'idem_' + Date.now());" ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.bet_id) pm.collectionVariables.set('betId', res.bet_id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{token}}" },
+              { "key": "Content-Type",   "value": "application/json" },
+              { "key": "Idempotency-Key","value": "{{betKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"game_session_id\": \"{{sessionId}}\",\n  \"game_id\": \"game_slots_v1\",\n  \"amount\": \"5.00\",\n  \"currency\": \"USD\",\n  \"bet_type\": \"spin\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/bets/place"
+          }
+        },
+        {
+          "name": "Place bet — idempotency replay (same key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Replay header present', () => pm.expect(pm.response.headers.get('X-Idempotency-Replay')).to.eq('true'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{token}}" },
+              { "key": "Content-Type",   "value": "application/json" },
+              { "key": "Idempotency-Key","value": "{{betKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"game_session_id\": \"{{sessionId}}\",\n  \"game_id\": \"game_crash_v1\",\n  \"amount\": \"10.00\",\n  \"currency\": \"USD\",\n  \"bet_type\": \"crash\",\n  \"parameters\": { \"auto_cashout\": 2.0 }\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/bets/place",
+            "description": "Replay with the same Idempotency-Key. Must return the original response — no second debit."
+          }
+        },
+        {
+          "name": "Place bet — missing idempotency key (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [ "pm.test('Status 400', () => pm.response.to.have.status(400));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"game_id\": \"game_crash_v1\",\n  \"amount\": \"10.00\",\n  \"currency\": \"USD\",\n  \"bet_type\": \"crash\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/bets/place"
+          }
+        },
+        {
+          "name": "Get bet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has status', () => pm.expect(pm.response.json().status).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/bets/{{betId}}"
+          }
+        },
+        {
+          "name": "Get bet history",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bets/history?limit=20",
+              "query": [
+                { "key": "limit",  "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "status", "value": "settled", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Void bet (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/bets/{{betId}}/void"
+          }
+        },
+        {
+          "name": "Settle bet manually (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payout\": \"20.00\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/bets/{{betId}}/settle"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Risk",
+      "item": [
+        {
+          "name": "Evaluate risk",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"action\": \"bet_place\",\n  \"amount\": \"500.00\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/risk/evaluate"
+          }
+        },
+        {
+          "name": "Ingest fraud signal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"signal_type\": \"unusual_velocity\",\n  \"severity\": \"medium\",\n  \"context\": {\n    \"bets_in_60s\": 45\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/risk/signals"
+          }
+        },
+        {
+          "name": "Get risk score",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/risk/users/{{userId}}/risk-score"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Feature Flags",
+      "item": [
+        {
+          "name": "Get all flags",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/config/flags"
+          }
+        },
+        {
+          "name": "Get specific flag",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/config/flags/crash_game_enabled"
+          }
+        },
+        {
+          "name": "Update flag (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"rollout_pct\": 50,\n  \"variant\": \"v2\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/config/flags/crash_game_enabled"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [ "pm.test('Status 200', () => pm.response.to.have.status(200));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/live"
+          }
+        },
+        {
+          "name": "Readiness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Postgres healthy', () => pm.expect(pm.response.json().checks.postgres.status).to.eq('ok'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/ready"
+          }
+        },
+        {
+          "name": "Dependencies",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/dependencies"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "System status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/_internal/status"
+          }
+        },
+        {
+          "name": "Runtime config",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/_internal/config"
+          }
+        },
+        {
+          "name": "DB table stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/_internal/db/stats"
+          }
+        }
+      ]
+    }
+  ]
+}
