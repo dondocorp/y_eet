@@ -1,5 +1,5 @@
 locals {
-  bucket_prefix = "yeet-obs-${var.environment}"
+  bucket_prefix = "y_eet-obs-${var.environment}"
 }
 
 # ── Loki S3 bucket ─────────────────────────────────���──────────────────────────

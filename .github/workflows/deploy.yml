@@ -22,9 +22,9 @@ concurrency:
   cancel-in-progress: false   # never cancel in-flight deploys
 
 env:
-  SERVICE_NAME: yeet-platform-api
+  SERVICE_NAME: y_eet-platform-api
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/yeet-platform-api
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/y_eet-platform-api
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -86,7 +86,10 @@ jobs:
     needs: build-image
     environment:
       name: staging
-      url: https://api.staging.yeet.com
+      url: https://api.staging.y_eet.com
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -94,7 +97,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_STAGING }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Update kubeconfig
         run: |
@@ -162,8 +165,11 @@ jobs:
     needs: [build-image, post-deploy-validate-staging]
     environment:
       name: prod
-      url: https://api.yeet.com
+      url: https://api.y_eet.com
     # Requires manual approval via GitHub Environments protection rule
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -171,7 +177,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Update kubeconfig
         run: |
@@ -268,9 +274,9 @@ jobs:
           }
 
           FAIL=0
-          check_burn_rate 'slo:yeet_betting:error_rate1h / 0.005' 3 "Bet placement" || FAIL=1
-          check_burn_rate 'slo:yeet_auth:error_rate1h / 0.001' 3 "Auth"           || FAIL=1
-          check_burn_rate 'slo:yeet_wallet_read:error_rate1h / 0.001' 3 "Wallet"  || FAIL=1
+          check_burn_rate 'slo:y_eet_betting:error_rate1h / 0.005' 3 "Bet placement" || FAIL=1
+          check_burn_rate 'slo:y_eet_auth:error_rate1h / 0.001' 3 "Auth"           || FAIL=1
+          check_burn_rate 'slo:y_eet_wallet_read:error_rate1h / 0.001' 3 "Wallet"  || FAIL=1
 
           if [ "$FAIL" -eq 1 ]; then
             echo "::error::SLO burn rate elevated after deploy. Consider rollback:"

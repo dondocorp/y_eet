@@ -116,7 +116,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_TERRAFORM }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -189,7 +189,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_TERRAFORM }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -301,7 +301,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Update kubeconfig
         run: |

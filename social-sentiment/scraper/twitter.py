@@ -22,7 +22,6 @@ from typing import AsyncIterator
 from urllib.parse import quote_plus
 
 from config.settings import SCRAPER_MAX_POSTS_PER_RUN
-
 from scraper.base import BaseScraper, RawPost
 
 logger = logging.getLogger(__name__)

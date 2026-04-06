@@ -19,7 +19,7 @@ def test_fire_inserts_alert_event(tmp_db):
             alert_name="TestAlert",
             severity="warning",
             platform="reddit",
-            brand_query="yeet casino",
+            brand_query="y_eet casino",
             message="Test alert message",
             trigger_value=0.5,
             threshold=0.4,
@@ -56,8 +56,8 @@ def test_suppression_prevents_duplicate_fire(tmp_db):
     ):
         from alerts.evaluator import _fire
 
-        _fire("TestAlert2", "warning", "twitter", "yeet.com", "msg", 0.5, 0.4)
-        _fire("TestAlert2", "warning", "twitter", "yeet.com", "msg", 0.5, 0.4)
+        _fire("TestAlert2", "warning", "twitter", "y_eet.com", "msg", 0.5, 0.4)
+        _fire("TestAlert2", "warning", "twitter", "y_eet.com", "msg", 0.5, 0.4)
 
     # Should only send once due to suppression
     assert call_count["n"] == 1
@@ -78,7 +78,7 @@ def test_no_alert_when_below_threshold(tmp_db):
         {
             "hour_bucket": "2024-01-15T13:00:00Z",
             "platform": "ALL",
-            "brand_query": "yeet casino",
+            "brand_query": "y_eet casino",
             "total_posts": 10,
             "relevant_posts": 10,
             "positive_count": 7,
@@ -96,7 +96,7 @@ def test_no_alert_when_below_threshold(tmp_db):
     ):
         from alerts.evaluator import evaluate_sentiment_alerts
 
-        evaluate_sentiment_alerts("yeet casino", "ALL")
+        evaluate_sentiment_alerts("y_eet casino", "ALL")
 
     mock_send.assert_not_called()
     sdb.DB_PATH = orig
@@ -120,7 +120,7 @@ def test_metrics_incremented_on_alert(tmp_db):
     ):
         from alerts.evaluator import _fire
 
-        _fire("MetricTestAlert", "warning", "reddit", "yeet casino", "m", 0.5, 0.4)
+        _fire("MetricTestAlert", "warning", "reddit", "y_eet casino", "m", 0.5, 0.4)
 
     after = METRICS.alerts_triggered_total.labels(
         alert_name="MetricTestAlert", severity="warning"

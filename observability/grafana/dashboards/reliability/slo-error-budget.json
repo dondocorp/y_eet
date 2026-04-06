@@ -14,7 +14,7 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "1 - (sum(rate(yeet_http_requests_total{route=~\"/api/v1/auth/.*\", status=~\"5..\"}[7d])) / sum(rate(yeet_http_requests_total{route=~\"/api/v1/auth/.*\"}[7d])))",
+          "expr": "1 - (sum(rate(y_eet_http_requests_total{route=~\"/api/v1/auth/.*\", status=~\"5..\"}[7d])) / sum(rate(y_eet_http_requests_total{route=~\"/api/v1/auth/.*\"}[7d])))",
           "legendFormat": "Auth 7d availability",
           "instant": true
         },
@@ -52,7 +52,7 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "slo:yeet_auth:error_rate1h / 0.001",
+          "expr": "slo:y_eet_auth:error_rate1h / 0.001",
           "legendFormat": "Auth burn rate (1h)"
         }
       ],
@@ -81,7 +81,7 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "slo:yeet_betting:error_rate1h / 0.005",
+          "expr": "slo:y_eet_betting:error_rate1h / 0.005",
           "legendFormat": "Betting burn rate (1h)"
         }
       ],
@@ -107,7 +107,7 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "slo:yeet_wallet_read:error_rate1h / 0.001",
+          "expr": "slo:y_eet_wallet_read:error_rate1h / 0.001",
           "legendFormat": "Wallet burn rate (1h)"
         }
       ],
@@ -133,7 +133,7 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(yeet_bet_placement_duration_ms_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le))",
           "legendFormat": "Bet placement P99"
         },
         {
@@ -151,7 +151,7 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(yeet_risk_eval_duration_ms_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(y_eet_risk_eval_duration_ms_bucket[5m])) by (le))",
           "legendFormat": "Risk eval P99"
         },
         {

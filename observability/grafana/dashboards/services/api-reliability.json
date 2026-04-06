@@ -11,7 +11,7 @@
         "name": "route",
         "type": "query",
         "datasource": { "uid": "prometheus" },
-        "query": "label_values(yeet_http_requests_total, route)",
+        "query": "label_values(y_eet_http_requests_total, route)",
         "includeAll": true,
         "multi": true
       },
@@ -35,7 +35,7 @@
       "title": "Total RPS",
       "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
       "datasource": { "uid": "prometheus" },
-      "targets": [{ "expr": "sum(rate(yeet_http_requests_total[2m]))", "legendFormat": "RPS" }],
+      "targets": [{ "expr": "sum(rate(y_eet_http_requests_total[2m]))", "legendFormat": "RPS" }],
       "fieldConfig": { "defaults": { "unit": "reqps" } }
     },
     {
@@ -44,7 +44,7 @@
       "title": "5xx Error Rate",
       "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
       "datasource": { "uid": "prometheus" },
-      "targets": [{ "expr": "sum(rate(yeet_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(yeet_http_requests_total[5m]))", "legendFormat": "5xx rate" }],
+      "targets": [{ "expr": "sum(rate(y_eet_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(y_eet_http_requests_total[5m]))", "legendFormat": "5xx rate" }],
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
@@ -65,7 +65,7 @@
       "title": "P99 Latency (app layer)",
       "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
       "datasource": { "uid": "prometheus" },
-      "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(yeet_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "P99" }],
+      "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(y_eet_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "P99" }],
       "fieldConfig": { "defaults": { "unit": "ms" } }
     },
     {
@@ -96,7 +96,7 @@
       "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
       "datasource": { "uid": "prometheus" },
       "targets": [{
-        "expr": "sum(rate(yeet_http_requests_total{route=~\"$route\"}[2m])) by (route, method)",
+        "expr": "sum(rate(y_eet_http_requests_total{route=~\"$route\"}[2m])) by (route, method)",
         "legendFormat": "{{ method }} {{ route }}"
       }],
       "fieldConfig": { "defaults": { "unit": "reqps" } }
@@ -108,7 +108,7 @@
       "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
       "datasource": { "uid": "prometheus" },
       "targets": [{
-        "expr": "sum(rate(yeet_http_requests_total{route=~\"$route\", status=~\"5..\"}[5m])) by (route) / sum(rate(yeet_http_requests_total{route=~\"$route\"}[5m])) by (route)",
+        "expr": "sum(rate(y_eet_http_requests_total{route=~\"$route\", status=~\"5..\"}[5m])) by (route) / sum(rate(y_eet_http_requests_total{route=~\"$route\"}[5m])) by (route)",
         "legendFormat": "{{ route }}"
       }],
       "fieldConfig": { "defaults": { "unit": "percentunit" } }
@@ -121,11 +121,11 @@
       "datasource": { "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(yeet_http_request_duration_ms_bucket{route=~\"$route\"}[5m])) by (route, le))",
+          "expr": "histogram_quantile(0.50, sum(rate(y_eet_http_request_duration_ms_bucket{route=~\"$route\"}[5m])) by (route, le))",
           "legendFormat": "{{ route }} P50"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(yeet_http_request_duration_ms_bucket{route=~\"$route\"}[5m])) by (route, le))",
+          "expr": "histogram_quantile(0.99, sum(rate(y_eet_http_request_duration_ms_bucket{route=~\"$route\"}[5m])) by (route, le))",
           "legendFormat": "{{ route }} P99"
         }
       ],
@@ -138,7 +138,7 @@
       "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
       "datasource": { "uid": "prometheus" },
       "targets": [{
-        "expr": "sum(rate(yeet_http_requests_total{status=\"429\"}[5m])) by (route)",
+        "expr": "sum(rate(y_eet_http_requests_total{status=\"429\"}[5m])) by (route)",
         "legendFormat": "{{ route }}"
       }],
       "fieldConfig": { "defaults": { "unit": "reqps" } }

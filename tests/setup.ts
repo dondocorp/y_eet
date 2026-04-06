@@ -2,7 +2,7 @@
 // config.ts calls process.exit(1) on invalid config, so this must run first.
 process.env.NODE_ENV = 'test';
 process.env.PORT = '8080';
-process.env.SERVICE_NAME = 'yeet-test';
+process.env.SERVICE_NAME = 'y_eet-test';
 process.env.SERVICE_VERSION = '0.0.0';
 process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test';
 process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-chars-long!!';

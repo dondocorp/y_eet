@@ -2,9 +2,9 @@
 
 > Production-grade crypto-casino platform — real-time betting, provably fair games, atomic wallets, full-stack observability, and brand intelligence. Built to handle money.
 
-[![CI](https://github.com/dondocorp/yeet/actions/workflows/ci.yml/badge.svg)](https://github.com/dondocorp/yeet/actions/workflows/ci.yml)
-[![Deploy](https://github.com/dondocorp/yeet/actions/workflows/deploy.yml/badge.svg)](https://github.com/dondocorp/yeet/actions/workflows/deploy.yml)
-[![Observability](https://github.com/dondocorp/yeet/actions/workflows/observability-deploy.yml/badge.svg)](https://github.com/dondocorp/yeet/actions/workflows/observability-deploy.yml)
+[![CI](https://github.com/dondocorp/y_eet/actions/workflows/ci.yml/badge.svg)](https://github.com/dondocorp/y_eet/actions/workflows/ci.yml)
+[![Deploy](https://github.com/dondocorp/y_eet/actions/workflows/deploy.yml/badge.svg)](https://github.com/dondocorp/y_eet/actions/workflows/deploy.yml)
+[![Observability](https://github.com/dondocorp/y_eet/actions/workflows/observability-deploy.yml/badge.svg)](https://github.com/dondocorp/y_eet/actions/workflows/observability-deploy.yml)
 ![Stack](https://img.shields.io/badge/stack-Node%20%7C%20Python%20%7C%20Postgres%20%7C%20Redis-informational)
 ![Observability](https://img.shields.io/badge/observability-Prometheus%20%7C%20Grafana%20%7C%20Tempo%20%7C%20Loki-blueviolet)
 ![IaC](https://img.shields.io/badge/infra-Terraform%20%7C%20EKS%20%7C%20Istio-orange)
@@ -131,7 +131,7 @@ Starts the full stack: API · PostgreSQL · Redis · OTEL Collector · Prometheu
 ## Repo Structure
 
 ```
-yeet/
+y_eet/
 ├── src/                    # Application source (Fastify / TypeScript)
 │   ├── routes/             # HTTP handlers — auth, wallet, bets, games, risk, health
 │   ├── services/           # Business logic — BetService, WalletService, RiskService, …
@@ -168,7 +168,7 @@ yeet/
 │   ├── dashboard/          # Streamlit analyst UI on :8501
 │   └── tests/              # Full test suite
 │
-├── yeet-synth/             # Python synthetic traffic generator
+├── y_eet-synth/             # Python synthetic traffic generator
 │   ├── synth/              # Archetypes, profiles, mesh validator, OTel, chaos
 │   └── config/             # Profile YAML files
 │
@@ -209,7 +209,7 @@ npm run dev     # hot-reload via ts-node-dev on :8080
 ### Synthetic traffic
 
 ```bash
-cd yeet-synth
+cd y_eet-synth
 make install                               # creates .venv, installs deps
 make smoke BASE_URL=http://localhost:8080  # 30s smoke test
 make run-normal BASE_URL=http://localhost:8080
@@ -233,7 +233,7 @@ npm run lint && npm run typecheck && npm test
 
 **Trace ID in every response** — All error responses include `trace_id` from the active OTEL span. Frontend hands this to support; support pastes it into Grafana Tempo for the full trace.
 
-**No Istio metric duplication** — `yeet_http_requests_total` / `yeet_http_request_duration_ms` are app-layer metrics for route/synthetic context. `istio_requests_total` / `istio_request_duration_milliseconds` are the source of truth for RED metrics and SLOs.
+**No Istio metric duplication** — `y_eet_http_requests_total` / `y_eet_http_request_duration_ms` are app-layer metrics for route/synthetic context. `istio_requests_total` / `istio_request_duration_milliseconds` are the source of truth for RED metrics and SLOs.
 
 ---
 
@@ -243,4 +243,4 @@ npm run lint && npm run typecheck && npm test
 |---|---|
 | [`observability/README.md`](observability/README.md) | Observability platform, telemetry flows, dashboard inventory, alert rules, SLOs, runbook index |
 | [`social-sentiment/README.md`](social-sentiment/README.md) | Brand intelligence pipeline, sentiment model, alert rules, Grafana integration, keyword config |
-| [`yeet-synth/README.md`](yeet-synth/README.md) | Synthetic traffic generator, traffic profiles, mesh validation, CI integration |
+| [`y_eet-synth/README.md`](y_eet-synth/README.md) | Synthetic traffic generator, traffic profiles, mesh validation, CI integration |

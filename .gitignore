@@ -34,8 +34,8 @@ env/
 
 # Data / runtime artifacts
 social-sentiment/data/
-yeet-synth/report*.json
-yeet-synth/.venv/
+y_eet-synth/report*.json
+y_eet-synth/.venv/
 
 # Terraform
 terraform/.terraform/

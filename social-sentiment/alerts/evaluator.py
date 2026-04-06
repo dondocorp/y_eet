@@ -28,6 +28,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
+from alerts.sender import send_alertmanager, send_telegram_alert
 from config.settings import (
     ALERT_MENTION_SPIKE_MULTIPLIER,
     ALERT_NEG_RATIO_THRESHOLD,
@@ -44,8 +45,6 @@ from storage.db import (
     transaction,
     utcnow,
 )
-
-from alerts.sender import send_alertmanager, send_telegram_alert
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer()

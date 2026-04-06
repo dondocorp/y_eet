@@ -9,7 +9,7 @@ INSERT INTO users (user_id, email, username, password_hash, status, kyc_status, 
 VALUES
   (
     '00000000-0000-0000-0000-000000000001',
-    'player1@yeet.com',
+    'player1@y_eet.com',
     'player1',
     '$2a$12$xGJnphrg7.n37LSzw6Sdq.rBtVdyGzpJRCZI3r5rSdoAJ0oHhS7o.',
     'active',
@@ -18,7 +18,7 @@ VALUES
   ),
   (
     '00000000-0000-0000-0000-000000000002',
-    'player2@yeet.com',
+    'player2@y_eet.com',
     'player2',
     '$2a$12$xGJnphrg7.n37LSzw6Sdq.rBtVdyGzpJRCZI3r5rSdoAJ0oHhS7o.',
     'active',
@@ -27,7 +27,7 @@ VALUES
   ),
   (
     '00000000-0000-0000-0000-000000000099',
-    'admin@yeet.com',
+    'admin@y_eet.com',
     'admin',
     '$2a$12$xGJnphrg7.n37LSzw6Sdq.rBtVdyGzpJRCZI3r5rSdoAJ0oHhS7o.',
     'active',

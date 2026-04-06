@@ -3,10 +3,10 @@ import { z } from 'zod';
 const ConfigSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(8080),
-  SERVICE_NAME: z.string().default('yeet-platform-api'),
+  SERVICE_NAME: z.string().default('y_eet-platform-api'),
   SERVICE_VERSION: z.string().default('1.0.0'),
 
-  DATABASE_URL: z.string().default('postgres://yeet:yeet@localhost:5432/yeet'),
+  DATABASE_URL: z.string().default('postgres://y_eet:y_eet@localhost:5432/y_eet'),
 
   JWT_SECRET: z.string().min(32).default('local-dev-secret-min-32-chars-here!!'),
   JWT_EXPIRY: z.string().default('15m'),

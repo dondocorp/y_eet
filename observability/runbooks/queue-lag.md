@@ -31,7 +31,7 @@ kubectl get pods -n <namespace> -o wide
 
 ## DLQ Investigation
 
-If `yeet-*-dlq` has messages:
+If `y_eet-*-dlq` has messages:
 
 ```bash
 # Peek at DLQ messages (AWS CLI)

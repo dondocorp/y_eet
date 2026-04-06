@@ -99,7 +99,7 @@ observability/
 
 | Signal | Source | Do NOT duplicate |
 |---|---|---|
-| HTTP request count | Istio `istio_requests_total` | Do not use app `yeet_http_requests_total` for SLOs |
+| HTTP request count | Istio `istio_requests_total` | Do not use app `y_eet_http_requests_total` for SLOs |
 | HTTP request duration | Istio `istio_request_duration_milliseconds` | Do not create a competing histogram in app middleware |
 | mTLS status, cert expiry | Istio + cert-manager | App has no visibility here |
 | Service-to-service errors | Istio (`response_code` label) | App emits business error context only |

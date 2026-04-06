@@ -1,26 +1,26 @@
 groups:
   # ── Auth/Session SLO: 99.9% availability (7d rolling) ─────────────────────
-  - name: yeet.slo.auth
+  - name: y_eet.slo.auth
     rules:
-      - record: slo:yeet_auth:error_rate1h
+      - record: slo:y_eet_auth:error_rate1h
         expr: |
           1 - (
-            sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[1h]))
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[1h]))
             /
-            sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*"}[1h]))
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[1h]))
           )
 
-      - record: slo:yeet_auth:error_rate5m
+      - record: slo:y_eet_auth:error_rate5m
         expr: |
           1 - (
-            sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[5m]))
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[5m]))
             /
-            sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*"}[5m]))
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[5m]))
           )
 
       # Fast burn (1h window, 14.4x burn rate → budget exhausted in 5d)
       - alert: SLO_Auth_FastBurn
-        expr: slo:yeet_auth:error_rate1h > (14.4 * 0.001)
+        expr: slo:y_eet_auth:error_rate1h > (14.4 * 0.001)
         for: 2m
         labels:
           severity: critical
@@ -35,9 +35,9 @@ groups:
       - alert: SLO_Auth_SlowBurn
         expr: |
           (
-            1 - sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[6h]))
+            1 - sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[6h]))
               /
-              sum(rate(yeet_http_requests_total{route=~"/api/v1/auth/.*"}[6h]))
+              sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[6h]))
           ) > (6 * 0.001)
         for: 15m
         labels:
@@ -49,9 +49,9 @@ groups:
           runbook: "https://wiki.internal/runbooks/slo-auth"
 
   # ── Bet Placement SLO: 99.5% availability (7d rolling) ────────────────────
-  - name: yeet.slo.betting
+  - name: y_eet.slo.betting
     rules:
-      - record: slo:yeet_betting:error_rate1h
+      - record: slo:y_eet_betting:error_rate1h
         expr: |
           1 - (
             sum(rate(istio_requests_total{destination_service_name="bet-svc", response_code!~"5.."}[1h]))
@@ -60,7 +60,7 @@ groups:
           )
 
       - alert: SLO_BetPlacement_FastBurn
-        expr: slo:yeet_betting:error_rate1h > (14.4 * 0.005)
+        expr: slo:y_eet_betting:error_rate1h > (14.4 * 0.005)
         for: 2m
         labels:
           severity: critical
@@ -90,7 +90,7 @@ groups:
       - alert: SLO_BetPlacement_LatencySLO_Breach
         expr: |
           histogram_quantile(0.99,
-            sum(rate(yeet_bet_placement_duration_ms_bucket[30m])) by (le)
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[30m])) by (le)
           ) > 500
         for: 5m
         labels:
@@ -101,9 +101,9 @@ groups:
           runbook: "https://wiki.internal/runbooks/bet-latency"
 
   # ── Wallet Balance Read SLO: 99.9% availability ────────────────────────────
-  - name: yeet.slo.wallet
+  - name: y_eet.slo.wallet
     rules:
-      - record: slo:yeet_wallet_read:error_rate1h
+      - record: slo:y_eet_wallet_read:error_rate1h
         expr: |
           1 - (
             sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http", response_code!~"5.."}[1h]))
@@ -112,7 +112,7 @@ groups:
           )
 
       - alert: SLO_WalletRead_FastBurn
-        expr: slo:yeet_wallet_read:error_rate1h > (14.4 * 0.001)
+        expr: slo:y_eet_wallet_read:error_rate1h > (14.4 * 0.001)
         for: 2m
         labels:
           severity: critical
@@ -123,7 +123,7 @@ groups:
           runbook: "https://wiki.internal/runbooks/wallet-anomaly"
 
   # ── Observability pipeline health SLO ─────────────────────────────────────
-  - name: yeet.slo.observability
+  - name: y_eet.slo.observability
     rules:
       - alert: OTELCollectorDroppingSpans
         expr: |
@@ -172,7 +172,7 @@ groups:
           runbook: "https://wiki.internal/runbooks/collector-failure"
 
   # ── Mesh anomaly alerts ───────────────────────────────────────────────────
-  - name: yeet.mesh
+  - name: y_eet.mesh
     rules:
       - alert: IstioServiceHighRetryRate
         expr: |

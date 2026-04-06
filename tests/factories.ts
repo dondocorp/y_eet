@@ -2,7 +2,7 @@ import { User, WalletAccount, WalletTransaction, Bet, GameSession, UserRiskProfi
 
 export const makeUser = (overrides: Partial<User> = {}): User => ({
   userId:       '00000000-0000-0000-0000-000000000001',
-  email:        'player1@yeet.com',
+  email:        'player1@y_eet.com',
   username:     'player1',
   passwordHash: '$2a$01$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', // bcrypt rounds=1
   status:       'active',
@@ -15,7 +15,7 @@ export const makeUser = (overrides: Partial<User> = {}): User => ({
 });
 
 export const makeAdminUser = (overrides: Partial<User> = {}): User =>
-  makeUser({ userId: '00000000-0000-0000-0000-000000000099', email: 'admin@yeet.com', username: 'admin', roles: ['player', 'admin'], ...overrides });
+  makeUser({ userId: '00000000-0000-0000-0000-000000000099', email: 'admin@y_eet.com', username: 'admin', roles: ['player', 'admin'], ...overrides });
 
 export const makeWallet = (overrides: Partial<WalletAccount> = {}): WalletAccount => ({
   walletId:  'wallet-0001',

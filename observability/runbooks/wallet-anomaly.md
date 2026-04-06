@@ -19,12 +19,12 @@ If wallet transfer failures exceed 1% for > 2 minutes:
 
 ```promql
 # Error rate
-sum(rate(yeet_wallet_transfers_total{status="error"}[5m]))
+sum(rate(y_eet_wallet_transfers_total{status="error"}[5m]))
 /
-sum(rate(yeet_wallet_transfers_total[5m]))
+sum(rate(y_eet_wallet_transfers_total[5m]))
 
 # Which operation type is failing?
-sum(rate(yeet_wallet_transfers_total{status="error"}[5m])) by (type)
+sum(rate(y_eet_wallet_transfers_total{status="error"}[5m])) by (type)
 # type: deposit, withdrawal, bet_reserve, bet_win, adjustment
 ```
 
@@ -43,7 +43,7 @@ sum(rate(yeet_wallet_transfers_total{status="error"}[5m])) by (type)
 
 ### 1. Insufficient balance — not a bug
 ```promql
-yeet_wallet_transfers_total{status="error", reason="insufficient_balance"}
+y_eet_wallet_transfers_total{status="error", reason="insufficient_balance"}
 ```
 Normal if rate is < 1%. Elevated rate means client is not checking balance before betting.
 
@@ -58,7 +58,7 @@ Look for Postgres `ERROR 40001` (serialization_failure) in logs.
 If growing — client is generating non-unique idempotency keys. Escalate to consuming team.
 
 ### 4. Negative balance detection
-If `yeet_wallet_transfers_total{status="error", reason="balance_negative"}` fires:
+If `y_eet_wallet_transfers_total{status="error", reason="balance_negative"}` fires:
 - **STOP processing withdrawals and bet reserves immediately**
 - Check `wallet_accounts` table for users with `balance < 0`
 - This is a data integrity issue — escalate to engineering lead

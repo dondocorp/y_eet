@@ -129,28 +129,28 @@ Circuit breaker (opossum): 30% error rate over 5 samples → open. Reset after 1
 
 ### Metrics — `telemetry/metrics.ts`
 
-All instruments follow the `yeet_{domain}_{operation}_{unit}_total` naming convention.
+All instruments follow the `y_eet_{domain}_{operation}_{unit}_total` naming convention.
 
 | Instrument | Type | Labels |
 |---|---|---|
-| `yeet_auth_tokens_issued_total` | Counter | `type` |
-| `yeet_auth_failures_total` | Counter | `reason` |
-| `yeet_bet_placements_total` | Counter | `status`, `game_id` |
-| `yeet_bet_placement_duration_ms` | Histogram | — |
-| `yeet_bet_settlements_total` | Counter | `outcome`, `game_id` |
-| `yeet_bet_settlement_duration_ms` | Histogram | — |
-| `yeet_betting_volume_usd_total` | Counter | `game_id` |
-| `yeet_wallet_transfers_total` | Counter | `type`, `status` |
-| `yeet_wallet_transfer_duration_ms` | Histogram | — |
-| `yeet_risk_evaluations_total` | Counter | `decision` |
-| `yeet_risk_eval_duration_ms` | Histogram | — |
-| `yeet_risk_circuit_breaker_open_total` | Counter | — |
-| `yeet_active_game_sessions` | ObservableGauge | — |
-| `yeet_idempotency_hits_total` | Counter | — |
-| `yeet_http_requests_total` | Counter | `method`, `route`, `status`, `synthetic` |
-| `yeet_http_request_duration_ms` | Histogram | `method`, `route`, `status`, `synthetic` |
+| `y_eet_auth_tokens_issued_total` | Counter | `type` |
+| `y_eet_auth_failures_total` | Counter | `reason` |
+| `y_eet_bet_placements_total` | Counter | `status`, `game_id` |
+| `y_eet_bet_placement_duration_ms` | Histogram | — |
+| `y_eet_bet_settlements_total` | Counter | `outcome`, `game_id` |
+| `y_eet_bet_settlement_duration_ms` | Histogram | — |
+| `y_eet_betting_volume_usd_total` | Counter | `game_id` |
+| `y_eet_wallet_transfers_total` | Counter | `type`, `status` |
+| `y_eet_wallet_transfer_duration_ms` | Histogram | — |
+| `y_eet_risk_evaluations_total` | Counter | `decision` |
+| `y_eet_risk_eval_duration_ms` | Histogram | — |
+| `y_eet_risk_circuit_breaker_open_total` | Counter | — |
+| `y_eet_active_game_sessions` | ObservableGauge | — |
+| `y_eet_idempotency_hits_total` | Counter | — |
+| `y_eet_http_requests_total` | Counter | `method`, `route`, `status`, `synthetic` |
+| `y_eet_http_request_duration_ms` | Histogram | `method`, `route`, `status`, `synthetic` |
 
-> **Note:** `yeet_http_*` are app-layer metrics for route/synthetic context. Do not use these for RED metrics in SLO calculations — use `istio_requests_total` and `istio_request_duration_milliseconds` from Istio sidecar telemetry instead.
+> **Note:** `y_eet_http_*` are app-layer metrics for route/synthetic context. Do not use these for RED metrics in SLO calculations — use `istio_requests_total` and `istio_request_duration_milliseconds` from Istio sidecar telemetry instead.
 
 ### Traces — `telemetry/tracer.ts`
 
@@ -187,7 +187,7 @@ Requests with `X-Synthetic: true` header set `request.isSynthetic = true`. This 
 
 ### `registerRequestMiddleware(fastify)`
 
-Registered once on the root instance. Propagates `X-Request-ID` (or generates UUID), sets `request.isSynthetic`, records `yeet_http_requests_total` and `yeet_http_request_duration_ms` on every response, echoes `X-Service-Version` and `X-Request-ID` headers back.
+Registered once on the root instance. Propagates `X-Request-ID` (or generates UUID), sets `request.isSynthetic`, records `y_eet_http_requests_total` and `y_eet_http_request_duration_ms` on every response, echoes `X-Service-Version` and `X-Request-ID` headers back.
 
 ---
 
@@ -206,7 +206,7 @@ Registered once on the root instance. Propagates `X-Request-ID` (or generates UU
 
 | Variable | Default | Notes |
 |---|---|---|
-| `DATABASE_URL` | `postgres://yeet:yeet@localhost:5432/yeet` | |
+| `DATABASE_URL` | `postgres://y_eet:y_eet@localhost:5432/y_eet` | |
 | `JWT_SECRET` | *(dev placeholder)* | Must be ≥32 chars in production |
 | `JWT_EXPIRY` | `15m` | Pair with refresh tokens |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | `7` | |

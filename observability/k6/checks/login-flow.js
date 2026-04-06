@@ -35,8 +35,8 @@ const syntheticHeaders = {
   'x-check-name': 'login-flow',
 };
 
-const BASE_URL = __ENV.BASE_URL || 'http://yeet-platform-api.default.svc.cluster.local:8080';
-const SYNTH_EMAIL = __ENV.SYNTH_EMAIL || 'synthetic@yeet.internal';
+const BASE_URL = __ENV.BASE_URL || 'http://y_eet-platform-api.default.svc.cluster.local:8080';
+const SYNTH_EMAIL = __ENV.SYNTH_EMAIL || 'synthetic@y_eet.internal';
 const SYNTH_PASSWORD = __ENV.SYNTH_PASSWORD || 'SynthPassword123!';
 
 const loginErrors = new Counter('synth_login_errors_total');

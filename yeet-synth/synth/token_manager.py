@@ -78,7 +78,7 @@ class TokenPool:
             # (seeded by migration 002_seed.sql).
             # We log in with the known seed credentials.
             admin_creds = await self._login_existing(
-                email="admin@yeet.com",
+                email="admin@y_eet.com",
                 password="Admin1234!",
             )
             if admin_creds:

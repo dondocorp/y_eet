@@ -101,9 +101,9 @@ receivers:
     slack_configs:
       - channel: "#alerts-critical"
         send_resolved: true
-        title: '{{ template "yeet.slack.title" . }}'
-        text: '{{ template "yeet.slack.body" . }}'
-        color: '{{ template "yeet.slack.color" . }}'
+        title: '{{ template "y_eet.slack.title" . }}'
+        text: '{{ template "y_eet.slack.body" . }}'
+        color: '{{ template "y_eet.slack.color" . }}'
         actions:
           - type: button
             text: "Runbook"
@@ -116,32 +116,32 @@ receivers:
     slack_configs:
       - channel: "#alerts-warnings"
         send_resolved: true
-        title: '{{ template "yeet.slack.title" . }}'
-        text: '{{ template "yeet.slack.body" . }}'
-        color: '{{ template "yeet.slack.color" . }}'
+        title: '{{ template "y_eet.slack.title" . }}'
+        text: '{{ template "y_eet.slack.body" . }}'
+        color: '{{ template "y_eet.slack.color" . }}'
 
   - name: slack-slo
     slack_configs:
       - channel: "#slo-burn-rates"
         send_resolved: true
-        title: '{{ template "yeet.slack.title" . }}'
-        text: '{{ template "yeet.slack.body" . }}'
-        color: '{{ template "yeet.slack.color" . }}'
+        title: '{{ template "y_eet.slack.title" . }}'
+        text: '{{ template "y_eet.slack.body" . }}'
+        color: '{{ template "y_eet.slack.color" . }}'
 
   - name: slack-platform
     slack_configs:
       - channel: "#platform-alerts"
         send_resolved: true
-        title: '{{ template "yeet.slack.title" . }}'
-        text: '{{ template "yeet.slack.body" . }}'
+        title: '{{ template "y_eet.slack.title" . }}'
+        text: '{{ template "y_eet.slack.body" . }}'
 
   - name: slack-payments
     slack_configs:
       - channel: "#payments-alerts"
         send_resolved: true
-        title: '{{ template "yeet.slack.title" . }}'
-        text: '{{ template "yeet.slack.body" . }}'
-        color: '{{ template "yeet.slack.color" . }}'
+        title: '{{ template "y_eet.slack.title" . }}'
+        text: '{{ template "y_eet.slack.body" . }}'
+        color: '{{ template "y_eet.slack.color" . }}'
 
   - name: pagerduty-critical
     pagerduty_configs:

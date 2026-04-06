@@ -64,7 +64,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   await fastify.register(fastifyCors, {
-    origin: config.NODE_ENV === 'production' ? ['https://yeet.com', 'https://app.yeet.com'] : true,
+    origin: config.NODE_ENV === 'production' ? ['https://y_eet.com', 'https://app.y_eet.com'] : true,
     credentials: true,
   });
 

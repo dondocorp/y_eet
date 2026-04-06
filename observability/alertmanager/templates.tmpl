@@ -1,17 +1,17 @@
-{{ define "yeet.slack.title" -}}
+{{ define "y_eet.slack.title" -}}
 [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]
 {{- if .CommonLabels.service }} [{{ .CommonLabels.service }}]{{ end }}
 {{- if .CommonLabels.alertname }} {{ .CommonLabels.alertname }}{{ end }}
 {{- end }}
 
-{{ define "yeet.slack.color" -}}
+{{ define "y_eet.slack.color" -}}
 {{- if eq .Status "resolved" }}good
 {{- else if eq .CommonLabels.severity "critical" }}danger
 {{- else if eq .CommonLabels.severity "warning" }}warning
 {{- else }}#439FE0{{ end }}
 {{- end }}
 
-{{ define "yeet.slack.body" -}}
+{{ define "y_eet.slack.body" -}}
 {{ range .Alerts }}
 *{{ .Annotations.summary }}*
 {{ if .Annotations.description }}> {{ .Annotations.description }}{{ end }}

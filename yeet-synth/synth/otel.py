@@ -88,7 +88,7 @@ def get_tracer():
     if _tracer is None:
         from opentelemetry import trace
 
-        _tracer = trace.get_tracer("yeet-synth")
+        _tracer = trace.get_tracer("y_eet-synth")
     return _tracer
 
 

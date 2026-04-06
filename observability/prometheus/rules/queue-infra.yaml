@@ -1,10 +1,10 @@
 groups:
   # ── SQS Queue alerts (via CloudWatch exporter) ────────────────────────────
-  - name: yeet.queues
+  - name: y_eet.queues
     rules:
       - alert: SQSQueueDepthHigh
         expr: |
-          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 1000
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"y_eet-.*"} > 1000
         for: 5m
         labels:
           severity: warning
@@ -17,7 +17,7 @@ groups:
 
       - alert: SQSQueueDepthCritical
         expr: |
-          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 10000
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"y_eet-.*"} > 10000
         for: 3m
         labels:
           severity: critical
@@ -29,7 +29,7 @@ groups:
 
       - alert: SQSDeadLetterQueueGrowing
         expr: |
-          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*-dlq"} > 0
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"y_eet-.*-dlq"} > 0
         for: 5m
         labels:
           severity: warning
@@ -41,7 +41,7 @@ groups:
 
       - alert: SQSDeadLetterQueueCritical
         expr: |
-          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*-dlq"} > 100
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"y_eet-.*-dlq"} > 100
         for: 2m
         labels:
           severity: critical
@@ -53,9 +53,9 @@ groups:
 
       - alert: SQSConsumerNotConsuming
         expr: |
-          rate(aws_sqs_number_of_messages_deleted_sum{queue_name=~"yeet-.*"}[10m]) == 0
+          rate(aws_sqs_number_of_messages_deleted_sum{queue_name=~"y_eet-.*"}[10m]) == 0
           and
-          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"yeet-.*"} > 10
+          aws_sqs_approximate_number_of_messages_visible_average{queue_name=~"y_eet-.*"} > 10
         for: 10m
         labels:
           severity: critical
@@ -67,7 +67,7 @@ groups:
           runbook: "https://wiki.internal/runbooks/queue-lag"
 
   # ── Kubernetes pod/node alerts ────────────────────────────────────────────
-  - name: yeet.infra
+  - name: y_eet.infra
     rules:
       - alert: PodCrashLooping
         expr: |

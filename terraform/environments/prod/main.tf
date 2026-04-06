@@ -15,11 +15,11 @@ terraform {
     }
   }
   backend "s3" {
-    bucket         = "yeet-terraform-state-prod"
+    bucket         = "y_eet-terraform-state-prod"
     key            = "observability/prod/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "yeet-terraform-locks"
+    dynamodb_table = "y_eet-terraform-locks"
   }
 }
 
@@ -30,7 +30,7 @@ provider "aws" {
       Environment = "prod"
       ManagedBy   = "terraform"
       Team        = "platform"
-      Project     = "yeet-observability"
+      Project     = "y_eet-observability"
     }
   }
 }

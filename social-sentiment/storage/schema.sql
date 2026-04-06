@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS hourly_aggregates (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     hour_bucket             TEXT NOT NULL,  -- ISO8601 truncated to hour: 2024-01-15T14:00:00Z
     platform                TEXT NOT NULL,  -- twitter|reddit|youtube|ALL
-    brand_query             TEXT NOT NULL,  -- yeet|yeet-casino|yeet.com
+    brand_query             TEXT NOT NULL,  -- y_eet|y_eet-casino|y_eet.com
     total_posts             INTEGER DEFAULT 0,
     relevant_posts          INTEGER DEFAULT 0,
     positive_count          INTEGER DEFAULT 0,

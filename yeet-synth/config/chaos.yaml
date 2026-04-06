@@ -6,7 +6,7 @@
 # Usage:
 #   python main.py chaos --config config/chaos.yaml --duration 180
 
-base_url: "${SYNTH_BASE_URL:-http://api.yeet.internal}"
+base_url: "${SYNTH_BASE_URL:-http://api.y_eet.internal}"
 environment: "staging-chaos"
 
 token_pool_size: 15

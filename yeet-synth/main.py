@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-yeet-synth — Yeet Platform synthetic traffic & service mesh validation tool
+y_eet-synth — Yeet Platform synthetic traffic & service mesh validation tool
 
 Usage:
   python main.py smoke
@@ -148,7 +148,7 @@ def smoke(
 
     \b
     Example:
-      python main.py smoke --base-url https://api.yeet.com
+      python main.py smoke --base-url https://api.y_eet.com
     """
     _configure_logging(log_level)
     cfg = load_config(config_path)
