@@ -136,9 +136,60 @@ services:
     volumes:
       - ./observability/synthetic/blackbox-local.yaml:/etc/blackbox_exporter/config.yml
 
+  # ── Social Sentiment Subsystem ────────────────────────────────────────────
+  social-sentiment:
+    build:
+      context: ./social-sentiment
+      target: base
+    container_name: social-sentiment
+    ports:
+      - "9465:9465"     # Prometheus metrics
+    env_file:
+      - ./social-sentiment/.env.example
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      ALERTMANAGER_WEBHOOK_URL: http://alertmanager:9093/api/v2/alerts
+      DATA_DIR: /app/data
+      MODEL_CACHE_DIR: /app/model_cache
+      SCRAPER_HEADLESS: "true"
+    volumes:
+      - social_sentiment_data:/app/data
+      - social_sentiment_models:/app/model_cache
+      - ./social-sentiment:/app     # live reload in dev
+    depends_on:
+      - otel-collector
+      - alertmanager
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9465/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  social-sentiment-dashboard:
+    build:
+      context: ./social-sentiment
+      target: streamlit
+    container_name: social-sentiment-dashboard
+    ports:
+      - "8501:8501"
+    env_file:
+      - ./social-sentiment/.env.example
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - social_sentiment_data:/app/data
+      - ./social-sentiment:/app
+    depends_on:
+      - social-sentiment
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   prometheus_data:
   loki_data:
   tempo_data:
   grafana_data:
+  social_sentiment_data:
+  social_sentiment_models:

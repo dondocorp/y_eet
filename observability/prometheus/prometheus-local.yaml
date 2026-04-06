@@ -29,6 +29,15 @@ scrape_configs:
       - target_label: service_name
         replacement: yeet-platform-api
 
+  - job_name: social-sentiment
+    static_configs:
+      - targets: ["social-sentiment:9465"]
+    relabel_configs:
+      - target_label: service_name
+        replacement: social-sentiment
+      - target_label: domain
+        replacement: brand-intelligence
+
   - job_name: blackbox-health
     metrics_path: /probe
     params:

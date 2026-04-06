@@ -1,6 +1,6 @@
 # yeet
 
-> Production-grade iGaming platform — real-time betting, provably fair games, atomic wallets, and full-stack observability. Built to handle money.
+> Production-grade iGaming platform — real-time betting, provably fair games, atomic wallets, full-stack observability, and brand intelligence. Built to handle money.
 
 ---
 
@@ -11,6 +11,8 @@ Yeet is a transactional iGaming backend with a complete production observability
 **Core platform** — Auth, wallet, bet placement, game sessions, settlement, and fraud/risk, all with idempotent writes and atomic fund management.
 
 **Observability stack** — Distributed traces (Tempo), metrics (Prometheus + Thanos), logs (Loki), dashboards (Grafana), synthetic monitoring (k6 + Blackbox), SLO burn-rate alerting, and Istio mesh telemetry. Everything ships to a single Grafana portal.
+
+**Brand intelligence** — Social media sentiment pipeline that scrapes Reddit and Twitter, classifies brand relevance and sentiment, and surfaces trends, spikes, and alerts into the same Grafana portal as a dedicated Brand Intelligence domain.
 
 ---
 
@@ -42,6 +44,20 @@ Yeet is a transactional iGaming backend with a complete production observability
 | **Alerting** | Prometheus Alertmanager + Grafana Unified | — | — |
 | **SLOs** | PromQL recording rules + multi-window burn rate | Same as metrics | — |
 | **Long-term** | Thanos Compactor (5m/1h downsampling) | S3 Glacier IR | 13 months |
+| **Brand intelligence** | social-sentiment pipeline → Prometheus `/metrics` | SQLite (90d raw, permanent hourly) | 90d raw / permanent aggregates |
+
+### Brand Intelligence
+
+| Capability | Detail |
+|---|---|
+| **Sources** | Reddit (JSON + DOM), Twitter/X (public search) |
+| **Relevance filtering** | 5-stage keyword pipeline — hard exclusions, primary match, secondary+context, optional embedding gate |
+| **Sentiment** | `cardiffnlp/twitter-roberta-base-sentiment-latest` — 3-class (positive / neutral / negative), CPU-only |
+| **Derived labels** | `scam_concern`, `payment_issue`, `login_issue`, `ux_praise`, `support_complaint`, `hype` |
+| **Aggregation** | Hourly rollup — mention counts, sentiment ratios, influence-weighted score, label frequency |
+| **Alerting** | 7 alert rules via Telegram + Alertmanager; suppression + dedup built in |
+| **Portal integration** | Brand Intelligence Grafana folder — Executive View, Operations View, Pipeline Health |
+| **Analyst UI** | Streamlit on `:8501` — post explorer, top negatives, complaint clusters |
 
 ### Infrastructure
 
@@ -81,24 +97,44 @@ yeet/
 ├── observability/          # Full observability platform — infrastructure-as-config
 │   ├── collector/          # OTEL Collector configs (DaemonSet + Gateway + local dev)
 │   ├── istio/              # Telemetry CRs, PeerAuthentication, mesh config
-│   ├── prometheus/         # PrometheusRules (latency, errors, SLOs, queues, mesh)
-│   ├── alertmanager/       # Routing, inhibition, Slack/PagerDuty templates
+│   ├── prometheus/         # PrometheusRules (latency, errors, SLOs, queues, mesh, social)
+│   ├── alertmanager/       # Routing, inhibition, webhook templates
 │   ├── loki/               # Loki config + Fluent Bit DaemonSet
 │   ├── tempo/              # Tempo config (S3 + metrics-generator)
 │   ├── grafana/            # Dashboard JSON + datasource/folder provisioning
+│   │   └── dashboards/
+│   │       ├── brand-intelligence/  # Executive View, Operations View, Pipeline Health
+│   │       ├── platform-health/
+│   │       ├── services/
+│   │       ├── infrastructure/
+│   │       └── reliability/
 │   ├── k6/                 # Synthetic checks (login, bet placement, post-deploy)
 │   ├── synthetic/          # Blackbox Exporter config
 │   └── runbooks/           # Incident runbooks (api-outage, queue-lag, wallet, collector, canary)
+│
+├── social-sentiment/       # Brand intelligence + social sentiment pipeline (Python)
+│   ├── scraper/            # Playwright scrapers — Reddit, Twitter
+│   ├── nlp/                # Relevance classifier, sentiment classifier (RoBERTa)
+│   ├── storage/            # SQLite schema + typed access layer
+│   ├── pipeline/           # Ingest orchestrator, hourly aggregation
+│   ├── alerts/             # Alert evaluator, Telegram + Alertmanager sender
+│   ├── metrics/            # Prometheus metrics exporter on :9465
+│   ├── observability/      # OTEL tracer, JSON logger
+│   ├── config/             # Settings (env vars), keyword rules YAML
+│   ├── dashboard/          # Streamlit analyst UI on :8501
+│   ├── scripts/            # Scheduler, DB init, cron entrypoint
+│   └── tests/              # Full test suite — relevance, sentiment, storage, alerts, metrics
 │
 ├── terraform/              # Infrastructure provisioning
 │   ├── environments/       # prod, staging — root modules
 │   └── modules/            # grafana, loki, tempo, prometheus, otel-collector, storage
 │
 ├── .github/workflows/
-│   ├── ci.yml              # Lint + instrumentation check + observability validation + tests
-│   ├── deploy.yml          # Image build → staging → prod + synthetic gates + SLO check
+│   ├── ci.yml                    # Lint + instrumentation check + observability validation + tests
+│   ├── deploy.yml                # Image build → staging → prod + synthetic gates + SLO check
 │   ├── observability-deploy.yml  # Terraform plan/apply + dashboard push + rule deploy
-│   └── synthetic-monitoring.yml  # Scheduled k6 checks every 5 minutes
+│   ├── synthetic-monitoring.yml  # Scheduled k6 checks every 5 minutes
+│   └── social-sentiment.yml      # Sentiment pipeline CI — lint, tests, validate, build, notify
 │
 └── yeet-synth/             # Python synthetic traffic generator (mesh + chaos scenarios)
 ```
@@ -111,12 +147,20 @@ yeet/
 # Start the full local stack (API + Postgres + Redis + Prometheus + Loki + Tempo + Grafana)
 docker compose up
 
-# API:      http://localhost:8080
-# Metrics:  http://localhost:9464/metrics
-# Grafana:  http://localhost:3000   (anonymous admin, no login)
-# Prometheus: http://localhost:9090
-# Tempo:    http://localhost:3200
-# Loki:     http://localhost:3100
+# API:                    http://localhost:8080
+# API Metrics:            http://localhost:9464/metrics
+# Grafana:                http://localhost:3000   (anonymous admin, no login)
+# Prometheus:             http://localhost:9090
+# Tempo:                  http://localhost:3200
+# Loki:                   http://localhost:3100
+# Brand Intelligence:     http://localhost:3000 → Brand Intelligence folder
+# Sentiment Metrics:      http://localhost:9465/metrics
+# Analyst Dashboard:      http://localhost:8501
+```
+
+```bash
+# Start with brand intelligence pipeline included
+docker compose up social-sentiment social-sentiment-dashboard
 ```
 
 ```bash
@@ -151,3 +195,4 @@ npm run lint && npm run typecheck && npm test
 
 - [`src/README.md`](src/README.md) — application architecture, service logic, environment variables
 - [`observability/README.md`](observability/README.md) — observability platform, telemetry flows, runbook index, dashboard inventory
+- [`social-sentiment/README.md`](social-sentiment/README.md) — brand intelligence pipeline, sentiment model, alert rules, Grafana integration, keyword config
