@@ -1,0 +1,96 @@
+apiVersion: 1
+
+datasources:
+  # ── Prometheus / Thanos ───────────────────────────────────────────────────
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    url: http://thanos-query.monitoring.svc.cluster.local:9090
+    access: proxy
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      prometheusType: Thanos
+      prometheusVersion: "0.34.0"
+      cacheLevel: Medium
+      disableRecordingRules: false
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: 10m
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+    version: 1
+    editable: false
+
+  # ── Loki ──────────────────────────────────────────────────────────────────
+  - name: Loki
+    uid: loki
+    type: loki
+    url: http://loki-gateway.monitoring.svc.cluster.local
+    access: proxy
+    jsonData:
+      maxLines: 5000
+      # Derived fields: auto-link trace_id in logs to Tempo
+      derivedFields:
+        - matcherRegex: '"trace_id":"([a-f0-9]{32})"'
+          name: TraceID
+          url: "$${__value.raw}"
+          datasourceUid: tempo
+          urlDisplayLabel: "View Trace in Tempo"
+        - matcherRegex: '"request_id":"([^"]+)"'
+          name: RequestID
+          url: ""
+          urlDisplayLabel: "Request ID"
+    version: 1
+    editable: false
+
+  # ── Tempo ─────────────────────────────────────────────────────────────────
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    url: http://tempo-query-frontend.monitoring.svc.cluster.local:3200
+    access: proxy
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{namespace="${__span.tags["k8s.namespace.name"]}", service_name="${__span.tags["service.name"]}"} |= "${__trace.traceId}"'
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-2m"
+        spanEndTimeShift: "2m"
+        queries:
+          - name: "Request rate"
+            query: 'sum(rate(istio_requests_total{destination_service_name="${__span.tags["service.name"]}"}[5m]))'
+          - name: "P99 latency"
+            query: 'histogram_quantile(0.99, sum(rate(y_eet_http_request_duration_ms_bucket{route="${__span.tags["http.route"]}"}[5m])) by (le))'
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+    version: 1
+    editable: false
+
+  # ── CloudWatch (AWS managed services) ─────────────────────────────────────
+  - name: CloudWatch
+    uid: cloudwatch
+    type: cloudwatch
+    access: proxy
+    jsonData:
+      authType: default             # uses IRSA (IAM Role for Service Account)
+      defaultRegion: ${AWS_REGION}
+      tracingDatasourceUid: tempo
+    version: 1
+    editable: false

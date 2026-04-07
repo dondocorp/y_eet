@@ -1,0 +1,64 @@
+# y_eet-synth default configuration
+# All values can be overridden by environment variables (see .env.example)
+
+base_url: "http://localhost:8080"
+internal_base_url: "http://localhost:8080"
+
+service_name: "y_eet-synth"
+environment: "local"
+
+otel_endpoint: "http://localhost:4317"
+otel_enabled: true
+
+log_level: "INFO"
+request_timeout_seconds: 30.0
+connect_timeout_seconds: 5.0
+tls_verify: true
+x_synthetic: true
+
+token_pool_size: 20
+seed_admin_user: true
+json_report_path: "report.json"
+
+profile:
+  name: normal
+  concurrency: 20
+  duration_seconds: 300
+  rps_target: 50.0
+  burst_factor: 1.0
+  chaos_enabled: false
+  mesh_validation: false
+  canary_validation: false
+  scenario_weights:
+    anonymous: 0.10
+    authenticated: 0.25
+    active_bettor: 0.45
+    wallet_heavy: 0.15
+    admin: 0.05
+
+thresholds:
+  max_error_rate: 0.02
+  p95_latency_ms: 800.0
+  p99_latency_ms: 2000.0
+  max_timeout_rate: 0.005
+  max_auth_failure_rate: 0.01
+  canary_split_tolerance: 0.05
+  min_trace_propagation_rate: 0.95
+  retry_amplification_threshold: 1.5
+
+mesh:
+  validate_retries: true
+  validate_timeouts: true
+  validate_circuit_breaker: true
+  validate_canary: false
+  validate_fault_injection: false
+  validate_trace_propagation: true
+  validate_mtls: true
+  circuit_breaker_flood_rps: 100.0
+  circuit_breaker_flood_duration: 10
+  timeout_probe_delay_ms: 500
+  canary:
+    header_name: "x-canary-version"
+    expected_version: "canary"
+    expected_weight: 0.10
+    split_tolerance: 0.05

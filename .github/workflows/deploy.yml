@@ -1,0 +1,333 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: staging
+        type: choice
+        options: [staging, prod]
+      skip_slo_check:
+        description: "Skip post-deploy SLO regression check"
+        required: false
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false   # never cancel in-flight deploys
+
+env:
+  SERVICE_NAME: y_eet-platform-api
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/y_eet-platform-api
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build & push container image
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-image:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_sha_tag: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=long
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.labels['org.opencontainers.image.created'] }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            SERVICE_VERSION=${{ github.sha }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Deploy to Staging
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging
+    runs-on: ubuntu-latest
+    needs: build-image
+    environment:
+      name: staging
+      url: https://api.staging.y_eet.com
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_STAGING }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_STAGING }} \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to staging
+        run: |
+          kubectl set image deployment/${{ env.SERVICE_NAME }} \
+            ${{ env.SERVICE_NAME }}=${{ needs.build-image.outputs.image_sha_tag }} \
+            -n ${{ secrets.K8S_NAMESPACE_STAGING }}
+
+          kubectl rollout status deployment/${{ env.SERVICE_NAME }} \
+            -n ${{ secrets.K8S_NAMESPACE_STAGING }} \
+            --timeout=5m
+
+      - name: Publish Grafana deploy annotation
+        run: |
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_API_TOKEN }}" \
+            -d "{
+              \"text\": \"Deploy: ${{ env.SERVICE_NAME }} ${{ github.sha }} → staging by ${{ github.actor }}\",
+              \"tags\": [\"deploy\",\"staging\",\"${{ env.SERVICE_NAME }}\"]
+            }" \
+            ${{ secrets.GRAFANA_URL }}/api/annotations || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Post-deploy synthetic validation — Staging
+  # ─────────────────────────────────────────────────────────────────────────────
+  post-deploy-validate-staging:
+    name: Synthetic Validation — Staging
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run post-deploy k6 checks
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: observability/k6/checks/post-deploy-validation.js
+          flags: >
+            -e BASE_URL=${{ secrets.BASE_URL_STAGING }}
+            -e SYNTH_EMAIL=${{ secrets.SYNTH_EMAIL }}
+            -e SYNTH_PASSWORD=${{ secrets.SYNTH_PASSWORD }}
+            -e ENVIRONMENT=staging
+        env:
+          K6_OUT: json=k6-staging-results.json
+
+      - name: Upload k6 results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-staging-results
+          path: k6-staging-results.json
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Deploy to Prod (manual gate)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy → Prod
+    runs-on: ubuntu-latest
+    needs: [build-image, post-deploy-validate-staging]
+    environment:
+      name: prod
+      url: https://api.y_eet.com
+    # Requires manual approval via GitHub Environments protection rule
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_PROD }} \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to prod
+        run: |
+          kubectl set image deployment/${{ env.SERVICE_NAME }} \
+            ${{ env.SERVICE_NAME }}=${{ needs.build-image.outputs.image_sha_tag }} \
+            -n ${{ secrets.K8S_NAMESPACE_PROD }}
+
+          kubectl rollout status deployment/${{ env.SERVICE_NAME }} \
+            -n ${{ secrets.K8S_NAMESPACE_PROD }} \
+            --timeout=5m
+
+      - name: Publish Grafana deploy annotation
+        id: annotate
+        run: |
+          DEPLOY_TS=$(date +%s%3N)
+          echo "deploy_ts=$DEPLOY_TS" >> $GITHUB_OUTPUT
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_API_TOKEN }}" \
+            -d "{
+              \"time\": $DEPLOY_TS,
+              \"text\": \"Deploy: ${{ env.SERVICE_NAME }} ${{ github.sha }} → prod by ${{ github.actor }}\",
+              \"tags\": [\"deploy\",\"prod\",\"${{ env.SERVICE_NAME }}\"]
+            }" \
+            ${{ secrets.GRAFANA_URL }}/api/annotations || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Post-deploy synthetic validation — Prod
+  # ─────────────────────────────────────────────────────────────────────────────
+  post-deploy-validate-prod:
+    name: Synthetic Validation — Prod
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for traffic to settle
+        run: sleep 30
+
+      - name: Run post-deploy k6 checks
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: observability/k6/checks/post-deploy-validation.js
+          flags: >
+            -e BASE_URL=${{ secrets.BASE_URL_PROD }}
+            -e SYNTH_EMAIL=${{ secrets.SYNTH_EMAIL }}
+            -e SYNTH_PASSWORD=${{ secrets.SYNTH_PASSWORD }}
+            -e ENVIRONMENT=prod
+        env:
+          K6_OUT: json=k6-prod-results.json
+
+      - name: Upload k6 results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-prod-results-${{ github.sha }}
+          path: k6-prod-results.json
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # SLO regression check — 10 minutes post-deploy
+  # ─────────────────────────────────────────────────────────────────────────────
+  slo-regression-check:
+    name: SLO Regression Check
+    runs-on: ubuntu-latest
+    needs: post-deploy-validate-prod
+    if: ${{ github.event.inputs.skip_slo_check != 'true' }}
+    steps:
+      - name: Wait for metrics to stabilize
+        run: sleep 600
+
+      - name: Check SLO burn rates
+        run: |
+          check_burn_rate() {
+            local query="$1"
+            local threshold="$2"
+            local label="$3"
+            local rate
+            rate=$(curl -sf "${{ secrets.PROMETHEUS_URL }}/api/v1/query" \
+              --data-urlencode "query=$query" \
+              | jq -r '.data.result[0].value[1] // "0"')
+            echo "$label burn rate: ${rate}x"
+            if [ "$(echo "${rate:-0} > $threshold" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+              echo "::warning::$label burn rate ${rate}x exceeds warning threshold ${threshold}x"
+              return 1
+            fi
+            return 0
+          }
+
+          FAIL=0
+          check_burn_rate 'slo:y_eet_betting:error_rate1h / 0.005' 3 "Bet placement" || FAIL=1
+          check_burn_rate 'slo:y_eet_auth:error_rate1h / 0.001' 3 "Auth"           || FAIL=1
+          check_burn_rate 'slo:y_eet_wallet_read:error_rate1h / 0.001' 3 "Wallet"  || FAIL=1
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo "::error::SLO burn rate elevated after deploy. Consider rollback:"
+            echo "kubectl rollout undo deployment/${{ env.SERVICE_NAME }} -n ${{ secrets.K8S_NAMESPACE_PROD }}"
+            exit 1
+          fi
+          echo "All SLO burn rates within acceptable range post-deploy."
+        continue-on-error: true   # advisory — doesn't auto-rollback
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Notify
+  # ─────────────────────────────────────────────────────────────────────────────
+  notify-success:
+    name: Notify Success
+    runs-on: ubuntu-latest
+    needs: [post-deploy-validate-prod, slo-regression-check]
+    if: success()
+    steps:
+      - name: Slack success notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":rocket: Deploy succeeded: *${{ env.SERVICE_NAME }}* `${{ github.sha }}` → prod by ${{ github.actor }}",
+              "attachments": [{
+                "color": "good",
+                "fields": [
+                  { "title": "Commit", "value": "${{ github.event.head_commit.message }}", "short": false },
+                  { "title": "Dashboard", "value": "${{ secrets.GRAFANA_URL }}/d/deployment-health", "short": true },
+                  { "title": "SLO", "value": "${{ secrets.GRAFANA_URL }}/d/slo-error-budget", "short": true }
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  notify-failure:
+    name: Notify Failure
+    runs-on: ubuntu-latest
+    needs: [build-image, deploy-staging, post-deploy-validate-staging, deploy-prod, post-deploy-validate-prod]
+    if: failure()
+    steps:
+      - name: Slack failure notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":alert: Deploy FAILED: *${{ env.SERVICE_NAME }}* `${{ github.sha }}` by ${{ github.actor }} — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>",
+              "attachments": [{ "color": "danger" }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

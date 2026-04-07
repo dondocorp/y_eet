@@ -1,0 +1,96 @@
+---
+# Global Istio Telemetry configuration — applies mesh-wide from istio-system
+# Overrides applied per-namespace where needed.
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: mesh-default
+  namespace: istio-system
+spec:
+  # ── Tracing ────────────────────────────────────────────────────────────────
+  tracing:
+    - providers:
+        - name: otel-tracing
+      # 10% default sampling — betting/wallet overridden below
+      randomSamplingPercentage: 10
+      customTags:
+        # Propagate service version from env var for deployment correlation
+        service.version:
+          environment:
+            name: SERVICE_VERSION
+            defaultValue: "unknown"
+        deployment.environment:
+          environment:
+            name: NODE_ENV
+            defaultValue: "production"
+        # Tag synthetic requests for always-sample policy
+        synthetic.check:
+          header:
+            name: x-synthetic
+            defaultValue: "false"
+
+  # ── Access Logging ─────────────────────────────────────────────────────────
+  accessLogging:
+    - providers:
+        - name: otel-access-logging
+      # Filter out health/readiness probes and metrics scrapes to reduce log volume
+      filter:
+        expression: >
+          request.url_path != "/health/live" &&
+          request.url_path != "/health/ready" &&
+          request.url_path != "/health/startup" &&
+          request.url_path != "/metrics" &&
+          request.url_path != "/stats/prometheus"
+
+  # ── Metrics ────────────────────────────────────────────────────────────────
+  metrics:
+    - providers:
+        - name: prometheus
+      overrides:
+        # Add response_code_class label for coarser grouping
+        - match:
+            metric: REQUEST_COUNT
+            mode: CLIENT_AND_SERVER
+          tagOverrides:
+            response_code_class:
+              value: |
+                response.code / 100 + "xx"
+
+---
+# Betting namespace — 100% sampling (business critical)
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: betting-full-sampling
+  namespace: betting
+spec:
+  tracing:
+    - providers:
+        - name: otel-tracing
+      randomSamplingPercentage: 100
+
+---
+# Wallet namespace — 100% sampling
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: wallet-full-sampling
+  namespace: wallet
+spec:
+  tracing:
+    - providers:
+        - name: otel-tracing
+      randomSamplingPercentage: 100
+
+---
+# Auth namespace — 25% default, errors always sampled
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: auth-sampling
+  namespace: auth
+spec:
+  tracing:
+    - providers:
+        - name: otel-tracing
+      randomSamplingPercentage: 25

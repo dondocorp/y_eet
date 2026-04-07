@@ -1,0 +1,159 @@
+{
+  "uid": "api-reliability",
+  "title": "[SERVICE] API Reliability",
+  "description": "RED metrics for all public/internal APIs — error rate, latency, throughput by route",
+  "tags": ["services", "api", "reliability", "owner:api-team"],
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "route",
+        "type": "query",
+        "datasource": { "uid": "prometheus" },
+        "query": "label_values(y_eet_http_requests_total, route)",
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "status",
+        "type": "custom",
+        "options": [
+          { "text": "All", "value": ".*" },
+          { "text": "2xx", "value": "2.." },
+          { "text": "4xx", "value": "4.." },
+          { "text": "5xx", "value": "5.." }
+        ],
+        "current": { "value": ".*" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total RPS",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(y_eet_http_requests_total[2m]))", "legendFormat": "RPS" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "5xx Error Rate",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(y_eet_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(y_eet_http_requests_total[5m]))", "legendFormat": "5xx rate" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "P99 Latency (app layer)",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(y_eet_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "P99" }],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Synthetic Check Pass Rate",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(probe_success{job=~\"blackbox.*\"}[5m])) / count(probe_success{job=~\"blackbox.*\"})", "legendFormat": "Pass rate" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.9 },
+              { "color": "green", "value": 1.0 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Request Rate by Route",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(y_eet_http_requests_total{route=~\"$route\"}[2m])) by (route, method)",
+        "legendFormat": "{{ method }} {{ route }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Error Rate by Route",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(y_eet_http_requests_total{route=~\"$route\", status=~\"5..\"}[5m])) by (route) / sum(rate(y_eet_http_requests_total{route=~\"$route\"}[5m])) by (route)",
+        "legendFormat": "{{ route }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "P50/P95/P99 Latency by Route",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(y_eet_http_request_duration_ms_bucket{route=~\"$route\"}[5m])) by (route, le))",
+          "legendFormat": "{{ route }} P50"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(y_eet_http_request_duration_ms_bucket{route=~\"$route\"}[5m])) by (route, le))",
+          "legendFormat": "{{ route }} P99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Rate Limit Rejections",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(y_eet_http_requests_total{status=\"429\"}[5m])) by (route)",
+        "legendFormat": "{{ route }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Synthetic Probe Duration (Blackbox)",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "probe_duration_seconds{job=~\"blackbox.*\"} * 1000",
+        "legendFormat": "{{ instance }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    }
+  ]
+}

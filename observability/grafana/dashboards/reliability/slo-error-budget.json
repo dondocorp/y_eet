@@ -1,0 +1,165 @@
+{
+  "uid": "slo-error-budget",
+  "title": "[PLATFORM] SLO — Error Budget",
+  "description": "SLO compliance, error budget burn rates, and 30d trend for all services",
+  "tags": ["platform", "slo", "reliability", "owner:platform-sre"],
+  "refresh": "5m",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "SLO Inventory — Current Status",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "1 - (sum(rate(y_eet_http_requests_total{route=~\"/api/v1/auth/.*\", status=~\"5..\"}[7d])) / sum(rate(y_eet_http_requests_total{route=~\"/api/v1/auth/.*\"}[7d])))",
+          "legendFormat": "Auth 7d availability",
+          "instant": true
+        },
+        {
+          "expr": "1 - (sum(rate(istio_requests_total{destination_service_name=\"bet-svc\", response_code=~\"5..\"}[7d])) / sum(rate(istio_requests_total{destination_service_name=\"bet-svc\"}[7d])))",
+          "legendFormat": "Bet placement 7d availability",
+          "instant": true
+        },
+        {
+          "expr": "1 - (sum(rate(istio_requests_total{destination_service_name=\"wallet-svc\", response_code=~\"5..\"}[7d])) / sum(rate(istio_requests_total{destination_service_name=\"wallet-svc\"}[7d])))",
+          "legendFormat": "Wallet read 7d availability",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.995 },
+              { "color": "green", "value": 0.999 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Auth SLO — Error Budget Burn Rate (1h window)",
+      "gridPos": { "x": 0, "y": 10, "w": 8, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "slo:y_eet_auth:error_rate1h / 0.001",
+          "legendFormat": "Auth burn rate (1h)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 6 },
+              { "color": "red", "value": 14.4 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Bet Placement SLO — Error Budget Burn Rate",
+      "gridPos": { "x": 8, "y": 10, "w": 8, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "slo:y_eet_betting:error_rate1h / 0.005",
+          "legendFormat": "Betting burn rate (1h)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 6 },
+              { "color": "red", "value": 14.4 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Wallet SLO — Error Budget Burn Rate",
+      "gridPos": { "x": 16, "y": 10, "w": 8, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "slo:y_eet_wallet_read:error_rate1h / 0.001",
+          "legendFormat": "Wallet burn rate (1h)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 6 },
+              { "color": "red", "value": 14.4 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Bet Placement Latency SLO — P99 vs 500ms target",
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "Bet placement P99"
+        },
+        {
+          "expr": "500",
+          "legendFormat": "SLO target (500ms)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Risk Eval Latency — P99 vs 80ms circuit-breaker threshold",
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(y_eet_risk_eval_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "Risk eval P99"
+        },
+        {
+          "expr": "80",
+          "legendFormat": "Circuit breaker threshold (80ms)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    }
+  ]
+}

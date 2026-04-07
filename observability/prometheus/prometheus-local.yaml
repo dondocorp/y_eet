@@ -1,0 +1,55 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: local
+    environment: dev
+
+rule_files:
+  - /etc/prometheus/rules/*.yaml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  - job_name: y_eet-api
+    static_configs:
+      - targets: ["api:9464"]
+    relabel_configs:
+      - target_label: service_name
+        replacement: y_eet-platform-api
+
+  - job_name: social-sentiment
+    static_configs:
+      - targets: ["social-sentiment:9465"]
+    relabel_configs:
+      - target_label: service_name
+        replacement: social-sentiment
+      - target_label: domain
+        replacement: brand-intelligence
+
+  - job_name: blackbox-health
+    metrics_path: /probe
+    params:
+      module: [http_health]
+    static_configs:
+      - targets:
+          - http://api:8080/health/live
+          - http://api:8080/health/ready
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

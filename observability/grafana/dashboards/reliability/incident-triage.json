@@ -1,0 +1,156 @@
+{
+  "uid": "incident-triage",
+  "title": "[RELIABILITY] Incident Response / Triage",
+  "description": "On-call SRE first-15-minute triage dashboard — error rates, latency, traces, logs, mesh failures",
+  "tags": ["reliability", "incident", "oncall", "owner:platform-sre"],
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": { "uid": "prometheus" },
+        "query": "label_values(istio_requests_total, destination_service_namespace)",
+        "includeAll": true,
+        "current": { "value": "All" }
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "uid": "prometheus" },
+        "query": "label_values(istio_requests_total{destination_service_namespace=~\"$namespace\"}, destination_service_name)",
+        "includeAll": true,
+        "current": { "value": "All" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "alertlist",
+      "title": "Firing Alerts",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 5 },
+      "options": {
+        "alertInstanceLabelFilter": "",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "groupMode": "default",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "stateFilter": { "firing": true, "pending": true, "noData": false, "normal": false, "error": true }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "5xx Error Rate by Service (mesh)",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\", destination_service_name=~\"$service\", response_code=~\"5..\"}[2m])) by (destination_service_name, response_code)",
+        "legendFormat": "{{ destination_service_name }} {{ response_code }}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "links": [
+        {
+          "title": "API Reliability Dashboard",
+          "url": "/d/api-reliability"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "P99 Latency by Service (mesh)",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum(rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=~\"$namespace\", destination_service_name=~\"$service\"}[2m])) by (destination_service_name, le))",
+        "legendFormat": "{{ destination_service_name }} P99"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 2000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Request Volume — Is traffic present?",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\", destination_service_name=~\"$service\"}[2m])) by (destination_service_name)",
+        "legendFormat": "{{ destination_service_name }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Pod Restart Count (last 1h)",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]) > 0",
+        "legendFormat": "{{ namespace }}/{{ pod }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "Error Logs — $service (last 30m)",
+      "gridPos": { "x": 0, "y": 19, "w": 24, "h": 10 },
+      "datasource": { "uid": "loki" },
+      "targets": [{
+        "expr": "{namespace=~\"$namespace\", service_name=~\"$service\"} |= \"error\" | json | level=\"error\" or level=\"ERROR\"",
+        "legendFormat": ""
+      }],
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      }
+    },
+    {
+      "id": 7,
+      "type": "nodeGraph",
+      "title": "Service Map (Istio)",
+      "gridPos": { "x": 0, "y": 29, "w": 24, "h": 12 },
+      "datasource": { "uid": "tempo" },
+      "targets": [{
+        "queryType": "serviceMap",
+        "serviceMapQuery": "{namespace=~\"$namespace\"}"
+      }]
+    }
+  ]
+}
