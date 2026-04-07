@@ -29,6 +29,8 @@
 | Multi-window SLO burn-rate alerting | Fast burn (1h / 14.4×) + slow burn (6h / 6×) across all 5 SLOs |
 | Provably fair gaming | HMAC-SHA256 server-seed commitment scheme for crash and slots |
 | Reserve/release wallet model | Atomic bet staking with no hot-path row locks and zero double-spend guarantee |
+=======
+
 ---
 
 ## Architecture

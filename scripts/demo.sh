@@ -249,6 +249,11 @@ until $DC exec -T social-sentiment python3 -c "import sys; sys.exit(0)" &>/dev/n
 done
 
 if [[ $ELAPSED -lt 60 ]]; then
+  info "Initialising social sentiment DB (recovers corrupt/missing db)..."
+  $DC exec -T social-sentiment python3 -c "from storage import db; db.init_db()" \
+    && ok "DB initialised" \
+    || warn "DB init failed — seed may not work"
+
   $DC exec -T social-sentiment python3 scripts/seed_demo.py \
     && ok "Demo data seeded  →  Brand Intelligence dashboard ready" \
     || warn "Demo seed failed — dashboard will show empty state until pipeline runs"
