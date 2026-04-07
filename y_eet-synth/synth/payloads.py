@@ -47,7 +47,10 @@ LIVE_GAME_IDS = [
     "game_plinko_v1",
 ]
 
-BET_TYPES = ["spin", "straight", "auto_cashout", "split", "martingale", "parlay", "over_under", "handicap"]
+BET_TYPES = [
+    "spin", "straight", "auto_cashout", "split",
+    "martingale", "parlay", "over_under", "handicap",
+]
 
 RISK_SIGNAL_TYPES = [
     "multiple_account_attempt",

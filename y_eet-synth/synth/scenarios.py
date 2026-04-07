@@ -457,7 +457,9 @@ class HighRollerScenario:
 
         # Partial withdrawal
         if random.random() < 0.65:
-            r = await ep.wallet_withdraw(client, token, user_id, amount=_amt(200.0, 2000.0))
+            r = await ep.wallet_withdraw(
+                client, token, user_id, amount=_amt(200.0, 2000.0)
+            )
             result.requests += 1
             result.successes += 1 if r.status_code in (200, 201, 202) else 0
             result.errors += 0 if r.status_code in (200, 201, 202) else 1
