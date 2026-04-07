@@ -91,6 +91,14 @@ playwright install chromium
 python scripts/init_db.py
 python -m pipeline.ingest      # single run
 python scripts/scheduler.py    # continuous scheduler
+
+# Seed synthetic demo data (bypasses scraper/ML — instant dashboard population)
+PYTHONPATH=. python3 scripts/seed_demo.py         # skips if data already exists
+PYTHONPATH=. python3 scripts/seed_demo.py --force # re-seed unconditionally
+
+# Diagnose Reddit reachability + relevance pipeline (no DB writes by default)
+PYTHONPATH=. python3 scripts/test_fetch.py
+PYTHONPATH=. python3 scripts/test_fetch.py --query "yeet casino" --limit 20 --write
 ```
 
 | Endpoint | URL |
@@ -165,7 +173,9 @@ social-sentiment/
 │                           Complaint Clusters, Alert Log
 │
 ├── scripts/
-│   ├── scheduler.py        In-process scheduler with daily purge and metrics server
+│   ├── scheduler.py        In-process scheduler — startup Reddit fetch check, pipeline loop, daily purge
+│   ├── seed_demo.py        Inserts synthetic demo posts directly into all pipeline tables (bypasses scraper/ML)
+│   ├── test_fetch.py       Diagnostic script — Reddit reachability, relevance pass-through rate, DB round-trip
 │   ├── run_pipeline.sh     Shell entrypoint for host-level cron
 │   └── init_db.py          Idempotent DB initializer
 │
