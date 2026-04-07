@@ -135,9 +135,12 @@ if [[ "$SKIP_SYNTH" == "false" ]]; then
     SYNTH_AVAILABLE=true
     ok "y_eet-synth venv found"
   elif command -v python3 &>/dev/null; then
-    warn "y_eet-synth venv not set up (cd y_eet-synth && make install)"
-    warn "Starting without synthetic traffic — pass --skip-synth to suppress"
-    SKIP_SYNTH=true
+    info "y_eet-synth venv not found — running make install..."
+    (cd "$REPO_ROOT/y_eet-synth" && make install) || { err "make install failed — synthetic traffic disabled"; SKIP_SYNTH=true; }
+    if [[ "$SKIP_SYNTH" == "false" ]]; then
+      SYNTH_AVAILABLE=true
+      ok "y_eet-synth venv ready"
+    fi
   fi
 fi
 

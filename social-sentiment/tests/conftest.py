@@ -52,7 +52,7 @@ def sample_posts():
             "post_id": "333",
             "platform": "twitter",
             "scrape_run_id": "run-test-001",
-            "raw_text": "lol y_eet that ball haha",  # irrelevant
+            "raw_text": "lol yeet that ball haha",  # irrelevant
             "author_handle": "sport_fan",
             "posted_at": "2024-01-15T14:00:00Z",
         },

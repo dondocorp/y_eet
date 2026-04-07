@@ -107,6 +107,48 @@ PROFILES: dict[str, ProfileConfig] = {
             "admin": 0.05,
         },
     ),
+    # ── Flood / max throughput ────────────────────────────────────────────────
+    # Full production-scale stress test combining all traffic types.
+    # Runs a sustained 500 RPS baseline with 5× burst spikes every 90s,
+    # modelling a peak sports-event evening plus marketing acquisition surge.
+    "flood": ProfileConfig(
+        name="flood",
+        concurrency=300,
+        duration_seconds=600,
+        rps_target=500.0,
+        burst_factor=5.0,
+        burst_duration_seconds=30,
+        burst_interval_seconds=90,
+        scenario_weights={
+            "anonymous": 0.03,
+            "authenticated": 0.08,
+            "registration_funnel": 0.14,
+            "active_bettor": 0.22,
+            "live_event_bettor": 0.28,
+            "high_roller": 0.12,
+            "wallet_heavy": 0.10,
+            "admin": 0.03,
+        },
+    ),
+    # ── Onboarding surge ──────────────────────────────────────────────────────
+    # Models a marketing campaign driving large numbers of new registrations.
+    # Over half the traffic follows the full registration funnel.
+    "onboarding": ProfileConfig(
+        name="onboarding",
+        concurrency=150,
+        duration_seconds=300,
+        rps_target=200.0,
+        burst_factor=2.5,
+        burst_duration_seconds=20,
+        burst_interval_seconds=60,
+        scenario_weights={
+            "registration_funnel": 0.55,
+            "authenticated": 0.15,
+            "active_bettor": 0.18,
+            "wallet_heavy": 0.08,
+            "anonymous": 0.04,
+        },
+    ),
     # ── Canary validation ─────────────────────────────────────────────────────
     # Sends traffic specifically to verify a canary rollout percentage.
     "canary": ProfileConfig(
