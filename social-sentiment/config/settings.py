@@ -10,10 +10,10 @@ from pathlib import Path
 
 # ── Brand / Query ────────────────────────────────────────────────────────────
 BRAND_QUERIES: list[str] = os.getenv(
-    "BRAND_QUERIES", "y_eet,y_eet casino,y_eet.com"
+    "BRAND_QUERIES", "yeet,yeet casino,yeet.com"
 ).split(",")
 
-TARGET_BRAND_PRIMARY: str = os.getenv("TARGET_BRAND_PRIMARY", "y_eet casino")
+TARGET_BRAND_PRIMARY: str = os.getenv("TARGET_BRAND_PRIMARY", "yeet casino")
 
 # ── Storage ──────────────────────────────────────────────────────────────────
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))

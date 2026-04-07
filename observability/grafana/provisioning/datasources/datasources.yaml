@@ -5,17 +5,12 @@ datasources:
   - name: Prometheus
     uid: prometheus
     type: prometheus
-    url: http://thanos-query.monitoring.svc.cluster.local:9090
+    url: http://prometheus:9090
     access: proxy
     isDefault: true
     jsonData:
       httpMethod: POST
-      prometheusType: Thanos
-      prometheusVersion: "0.34.0"
-      cacheLevel: Medium
-      disableRecordingRules: false
-      incrementalQuerying: true
-      incrementalQueryOverlapWindow: 10m
+      prometheusType: Prometheus
       exemplarTraceIdDestinations:
         - name: trace_id
           datasourceUid: tempo
@@ -26,7 +21,7 @@ datasources:
   - name: Loki
     uid: loki
     type: loki
-    url: http://loki-gateway.monitoring.svc.cluster.local
+    url: http://loki:3100
     access: proxy
     jsonData:
       maxLines: 5000
@@ -48,7 +43,7 @@ datasources:
   - name: Tempo
     uid: tempo
     type: tempo
-    url: http://tempo-query-frontend.monitoring.svc.cluster.local:3200
+    url: http://tempo:3200
     access: proxy
     jsonData:
       tracesToLogsV2:

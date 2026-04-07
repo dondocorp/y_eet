@@ -94,26 +94,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_STAGING }}
-          aws-region: us-east-1
+        run: echo "[MOCK] AWS credentials skipped — AWS not configured yet"
 
       - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --name ${{ secrets.EKS_CLUSTER_STAGING }} \
-            --region ${{ secrets.AWS_REGION }}
+        run: echo "[MOCK] kubeconfig update skipped — AWS not configured yet"
 
       - name: Deploy to staging
         run: |
-          kubectl set image deployment/${{ env.SERVICE_NAME }} \
-            ${{ env.SERVICE_NAME }}=${{ needs.build-image.outputs.image_sha_tag }} \
-            -n ${{ secrets.K8S_NAMESPACE_STAGING }}
-
-          kubectl rollout status deployment/${{ env.SERVICE_NAME }} \
-            -n ${{ secrets.K8S_NAMESPACE_STAGING }} \
-            --timeout=5m
+          echo "[MOCK] Deployment skipped — AWS not configured yet"
+          echo "Would deploy: ${{ needs.build-image.outputs.image_sha_tag }} → staging"
 
       - name: Publish Grafana deploy annotation
         run: |
@@ -137,16 +126,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run post-deploy k6 checks
-        uses: grafana/k6-action@v0.3.1
-        with:
-          filename: observability/k6/checks/post-deploy-validation.js
-          flags: >
-            -e BASE_URL=${{ secrets.BASE_URL_STAGING }}
-            -e SYNTH_EMAIL=${{ secrets.SYNTH_EMAIL }}
-            -e SYNTH_PASSWORD=${{ secrets.SYNTH_PASSWORD }}
-            -e ENVIRONMENT=staging
-        env:
-          K6_OUT: json=k6-staging-results.json
+        run: |
+          echo "[MOCK] Post-deploy k6 validation skipped — no live staging environment yet"
+          echo '{}' > k6-staging-results.json
 
       - name: Upload k6 results
         uses: actions/upload-artifact@v4
@@ -174,26 +156,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
-          aws-region: us-east-1
+        run: echo "[MOCK] AWS credentials skipped — AWS not configured yet"
 
       - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --name ${{ secrets.EKS_CLUSTER_PROD }} \
-            --region ${{ secrets.AWS_REGION }}
+        run: echo "[MOCK] kubeconfig update skipped — AWS not configured yet"
 
       - name: Deploy to prod
         run: |
-          kubectl set image deployment/${{ env.SERVICE_NAME }} \
-            ${{ env.SERVICE_NAME }}=${{ needs.build-image.outputs.image_sha_tag }} \
-            -n ${{ secrets.K8S_NAMESPACE_PROD }}
-
-          kubectl rollout status deployment/${{ env.SERVICE_NAME }} \
-            -n ${{ secrets.K8S_NAMESPACE_PROD }} \
-            --timeout=5m
+          echo "[MOCK] Deployment skipped — AWS not configured yet"
+          echo "Would deploy: ${{ needs.build-image.outputs.image_sha_tag }} → prod"
 
       - name: Publish Grafana deploy annotation
         id: annotate
@@ -224,16 +195,9 @@ jobs:
         run: sleep 30
 
       - name: Run post-deploy k6 checks
-        uses: grafana/k6-action@v0.3.1
-        with:
-          filename: observability/k6/checks/post-deploy-validation.js
-          flags: >
-            -e BASE_URL=${{ secrets.BASE_URL_PROD }}
-            -e SYNTH_EMAIL=${{ secrets.SYNTH_EMAIL }}
-            -e SYNTH_PASSWORD=${{ secrets.SYNTH_PASSWORD }}
-            -e ENVIRONMENT=prod
-        env:
-          K6_OUT: json=k6-prod-results.json
+        run: |
+          echo "[MOCK] Post-deploy k6 validation skipped — no live prod environment yet"
+          echo '{}' > k6-prod-results.json
 
       - name: Upload k6 results
         uses: actions/upload-artifact@v4

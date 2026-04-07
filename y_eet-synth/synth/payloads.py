@@ -24,9 +24,30 @@ GAME_IDS = [
     "game_slots_turbo",
     "game_roulette_eu",
     "game_blackjack_std",
+    "game_poker_texas",
+    "game_poker_omaha",
+    "game_baccarat_std",
+    "game_dice_classic",
+    "game_plinko_v1",
+    "game_mines_v1",
+    "game_keno_classic",
+    "game_sports_prematch",
+    "game_sports_live",
+    "game_esports_cs",
+    "game_esports_lol",
 ]
 
-BET_TYPES = ["spin", "straight", "auto_cashout", "split", "martingale"]
+# Subset used for live-event / in-play simulation
+LIVE_GAME_IDS = [
+    "game_crash_v1",
+    "game_crash_v2",
+    "game_sports_live",
+    "game_esports_cs",
+    "game_esports_lol",
+    "game_plinko_v1",
+]
+
+BET_TYPES = ["spin", "straight", "auto_cashout", "split", "martingale", "parlay", "over_under", "handicap"]
 
 RISK_SIGNAL_TYPES = [
     "multiple_account_attempt",
@@ -40,7 +61,7 @@ RISK_SIGNAL_TYPES = [
 
 JURISDICTIONS = ["GB", "MT", "CY", "GI", "IE", "SE"]
 
-CURRENCIES = ["USD", "EUR"]
+CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD"]
 
 FLAG_KEYS = [
     "risk_eval_enabled",
@@ -160,6 +181,35 @@ def risk_evaluate_payload(
 def settle_bet_payload(multiplier: float | None = None) -> dict[str, Any]:
     m = multiplier or random.choice([0.0, 0.0, 2.0, 0.0, 5.0, 0.0, 10.0])
     return {"payout": f"{m:.2f}"}
+
+
+def profile_update_payload() -> dict[str, Any]:
+    return {
+        "display_name": fake.name(),
+        "avatar_url": f"https://avatars.y_eet.com/{uuid.uuid4().hex[:8]}",
+        "preferred_currency": random.choice(CURRENCIES),
+        "marketing_opt_in": random.choice([True, False]),
+        "notification_prefs": {
+            "email": random.choice([True, False]),
+            "push": random.choice([True, False]),
+            "sms": False,
+        },
+    }
+
+
+def kyc_payload() -> dict[str, Any]:
+    return {
+        "document_type": random.choice(["passport", "drivers_license", "national_id"]),
+        "document_number": fake.bothify(text="??######"),
+        "date_of_birth": fake.date_of_birth(minimum_age=18, maximum_age=70).isoformat(),
+        "country_of_issue": random.choice(JURISDICTIONS),
+        "address": {
+            "line1": fake.street_address(),
+            "city": fake.city(),
+            "postcode": fake.postcode(),
+            "country": random.choice(JURISDICTIONS),
+        },
+    }
 
 
 def malformed_bet_payload() -> dict[str, Any]:
