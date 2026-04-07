@@ -33,33 +33,178 @@ logger = logging.getLogger(__name__)
 
 DEMO_POSTS = [
     # positive
-    ("pos", "Just cashed out £500 from yeet casino, fastest withdrawal I've seen from any online casino tbh", "u/slotking88", 142, ["ux_praise"]),
-    ("pos", "yeet casino free spins on signup actually gave me a decent win, not the usual rigged nonsense", "u/bonushunter_uk", 87, ["hype", "ux_praise"]),
-    ("pos", "yeet.com casino support sorted my KYC in under an hour, impressed with the live chat", "u/casinoreview2024", 34, ["ux_praise"]),
-    ("pos", "Big win on yeet casino crash game tonight x14 multiplier, going again lads", "u/cryptogambler_", 201, ["hype"]),
-    ("pos", "yeet casino paid out my withdrawal same day, no delays no excuses. Solid platform", "u/withdrawal_watch", 56, ["ux_praise"]),
-    ("pos", "yeet casino VIP manager actually called me back, rare to see that level of support in crypto casinos", "u/highroller_anon", 93, ["ux_praise"]),
-    ("pos", "New slots on yeet casino this week are actually fire, RTP on the new one is 97%", "u/slots_addict_99", 167, ["hype"]),
+    (
+        "pos",
+        "Just cashed out £500 from yeet casino, fastest withdrawal"
+        " I've seen from any online casino tbh",
+        "u/slotking88",
+        142,
+        ["ux_praise"],
+    ),
+    (
+        "pos",
+        "yeet casino free spins on signup actually gave me a decent win,"
+        " not the usual rigged nonsense",
+        "u/bonushunter_uk",
+        87,
+        ["hype", "ux_praise"],
+    ),
+    (
+        "pos",
+        "yeet.com casino support sorted my KYC in under an hour,"
+        " impressed with the live chat",
+        "u/casinoreview2024",
+        34,
+        ["ux_praise"],
+    ),
+    (
+        "pos",
+        "Big win on yeet casino crash game tonight x14 multiplier, going again lads",
+        "u/cryptogambler_",
+        201,
+        ["hype"],
+    ),
+    (
+        "pos",
+        "yeet casino paid out my withdrawal same day,"
+        " no delays no excuses. Solid platform",
+        "u/withdrawal_watch",
+        56,
+        ["ux_praise"],
+    ),
+    (
+        "pos",
+        "yeet casino VIP manager actually called me back, rare to see"
+        " that level of support in crypto casinos",
+        "u/highroller_anon",
+        93,
+        ["ux_praise"],
+    ),
+    (
+        "pos",
+        "New slots on yeet casino this week are actually fire,"
+        " RTP on the new one is 97%",
+        "u/slots_addict_99",
+        167,
+        ["hype"],
+    ),
     # negative
-    ("neg", "yeet casino blocked my withdrawal for 3 weeks now, absolute scam. Do NOT deposit here", "u/frustrated_player1", 412, ["payment_issue", "scam_concern"]),
-    ("neg", "can't login to yeet casino account since yesterday, live chat just keeps me waiting. Useless support", "u/yeet_victim_22", 178, ["login_issue", "support_complaint"]),
-    ("neg", "yeet casino bonus wagering requirements are 60x, complete joke. They hide this in the small print", "u/bonusbuster_", 89, ["scam_concern"]),
-    ("neg", "withdrawal still pending after 5 days at yeet casino. Nobody responds to my emails. Avoid.", "u/moneytrapped2024", 334, ["payment_issue", "support_complaint"]),
-    ("neg", "yeet.com casino refused my payout claiming KYC issues when all docs were verified months ago. Stealing money", "u/rant_casino_", 523, ["payment_issue", "scam_concern"]),
-    ("neg", "yeet casino account got suspended right after a big win. Coincidence? I think not. Rigged garbage", "u/winnerblocked_", 289, ["login_issue", "scam_concern"]),
-    ("neg", "yeet casino deposit not showing after 2 hours, payment system is a disaster today", "u/deposit_fail_99", 67, ["payment_issue"]),
+    (
+        "neg",
+        "yeet casino blocked my withdrawal for 3 weeks now,"
+        " absolute scam. Do NOT deposit here",
+        "u/frustrated_player1",
+        412,
+        ["payment_issue", "scam_concern"],
+    ),
+    (
+        "neg",
+        "can't login to yeet casino account since yesterday,"
+        " live chat just keeps me waiting. Useless support",
+        "u/yeet_victim_22",
+        178,
+        ["login_issue", "support_complaint"],
+    ),
+    (
+        "neg",
+        "yeet casino bonus wagering requirements are 60x,"
+        " complete joke. They hide this in the small print",
+        "u/bonusbuster_",
+        89,
+        ["scam_concern"],
+    ),
+    (
+        "neg",
+        "withdrawal still pending after 5 days at yeet casino."
+        " Nobody responds to my emails. Avoid.",
+        "u/moneytrapped2024",
+        334,
+        ["payment_issue", "support_complaint"],
+    ),
+    (
+        "neg",
+        "yeet.com casino refused my payout claiming KYC issues"
+        " when all docs were verified months ago. Stealing money",
+        "u/rant_casino_",
+        523,
+        ["payment_issue", "scam_concern"],
+    ),
+    (
+        "neg",
+        "yeet casino account got suspended right after a big win."
+        " Coincidence? I think not. Rigged garbage",
+        "u/winnerblocked_",
+        289,
+        ["login_issue", "scam_concern"],
+    ),
+    (
+        "neg",
+        "yeet casino deposit not showing after 2 hours,"
+        " payment system is a disaster today",
+        "u/deposit_fail_99",
+        67,
+        ["payment_issue"],
+    ),
     # neutral
-    ("neu", "anyone actually tried yeet casino? looking for honest reviews before I deposit", "u/casinonoob2024", 23, []),
-    ("neu", "comparing yeet casino vs stake vs rollbit for crash games, which has better odds?", "u/crypto_casino_review", 45, []),
-    ("neu", "yeet casino launched a new live dealer section apparently. Anyone tried it yet?", "u/live_dealer_fan", 31, []),
-    ("neu", "yeet casino is running a weekend tournament, 10k prize pool for slots. Might enter", "u/tournament_grinder", 78, []),
-    ("neu", "does yeet casino accept crypto deposits? Trying to avoid fiat for privacy", "u/crypto_anon_", 19, []),
-    ("neu", "yeet casino rakeback deal vs other casinos — is 15% actually competitive?", "u/rakeback_chaser", 41, []),
+    (
+        "neu",
+        "anyone actually tried yeet casino?"
+        " looking for honest reviews before I deposit",
+        "u/casinonoob2024",
+        23,
+        [],
+    ),
+    (
+        "neu",
+        "comparing yeet casino vs stake vs rollbit for crash games,"
+        " which has better odds?",
+        "u/crypto_casino_review",
+        45,
+        [],
+    ),
+    (
+        "neu",
+        "yeet casino launched a new live dealer section apparently."
+        " Anyone tried it yet?",
+        "u/live_dealer_fan",
+        31,
+        [],
+    ),
+    (
+        "neu",
+        "yeet casino is running a weekend tournament,"
+        " 10k prize pool for slots. Might enter",
+        "u/tournament_grinder",
+        78,
+        [],
+    ),
+    (
+        "neu",
+        "does yeet casino accept crypto deposits?"
+        " Trying to avoid fiat for privacy",
+        "u/crypto_anon_",
+        19,
+        [],
+    ),
+    (
+        "neu",
+        "yeet casino rakeback deal vs other casinos"
+        " — is 15% actually competitive?",
+        "u/rakeback_chaser",
+        41,
+        [],
+    ),
 ]
 
 SENT_LABEL_MAP = {"pos": "positive", "neu": "neutral", "neg": "negative"}
 SENT_SCORE_MAP = {"pos": (0.72, 0.97), "neu": (0.55, 0.80), "neg": (0.68, 0.95)}
-SUBREDDITS = ["r/gambling", "r/onlinecasino", "r/cryptocurrency", "r/casinoreviews", "r/bonushunting"]
+SUBREDDITS = [
+    "r/gambling",
+    "r/onlinecasino",
+    "r/cryptocurrency",
+    "r/casinoreviews",
+    "r/bonushunting",
+]
 
 
 def _utcnow() -> str:
@@ -96,7 +241,8 @@ def seed(force: bool = False) -> None:
         # 1. scrape_run
         conn.execute(
             """INSERT OR IGNORE INTO scrape_runs
-               (run_id, platform, query, started_at, finished_at, status, posts_found, duration_ms)
+               (run_id, platform, query,
+                started_at, finished_at, status, posts_found, duration_ms)
                VALUES (?, 'reddit', ?, ?, ?, 'success', ?, 1200)""",
             (run_id, primary_query, _utcnow(), _utcnow(), len(DEMO_POSTS)),
         )
@@ -114,7 +260,9 @@ def seed(force: bool = False) -> None:
             post_id = f"demo_{i:03d}_{uuid.uuid4().hex[:6]}"
             # Spread posts across the last 6 hours so charts show a trend
             hours_back = random.uniform(0, 6)
-            posted_at = (now - timedelta(hours=hours_back)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            posted_at = (now - timedelta(hours=hours_back)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
 
             # 2. raw_posts
             conn.execute(
@@ -156,11 +304,23 @@ def seed(force: bool = False) -> None:
 
             # raw scores that sum to ~1
             if sentiment_key == "pos":
-                raw_pos, raw_neu, raw_neg = score, round((1 - score) * 0.7, 4), round((1 - score) * 0.3, 4)
+                raw_pos, raw_neu, raw_neg = (
+                    score,
+                    round((1 - score) * 0.7, 4),
+                    round((1 - score) * 0.3, 4),
+                )
             elif sentiment_key == "neg":
-                raw_neg, raw_neu, raw_pos = score, round((1 - score) * 0.7, 4), round((1 - score) * 0.3, 4)
+                raw_neg, raw_neu, raw_pos = (
+                    score,
+                    round((1 - score) * 0.7, 4),
+                    round((1 - score) * 0.3, 4),
+                )
             else:
-                raw_neu, raw_pos, raw_neg = score, round((1 - score) * 0.5, 4), round((1 - score) * 0.5, 4)
+                raw_neu, raw_pos, raw_neg = (
+                    score,
+                    round((1 - score) * 0.5, 4),
+                    round((1 - score) * 0.5, 4),
+                )
 
             conn.execute(
                 """INSERT OR IGNORE INTO sentiment_results
@@ -183,7 +343,10 @@ def seed(force: bool = False) -> None:
     _seed_hourly_aggregates(now, primary_query)
 
     logger.info("seed_demo_complete posts=%d query=%r", len(DEMO_POSTS), primary_query)
-    print(f"[seed_demo] Seeded {len(DEMO_POSTS)} demo posts for query '{primary_query}'")
+    print(
+        f"[seed_demo] Seeded {len(DEMO_POSTS)} demo posts"
+        f" for query '{primary_query}'"
+    )
 
 
 def _seed_hourly_aggregates(now: datetime, brand_query: str) -> None:
@@ -228,7 +391,10 @@ def _seed_hourly_aggregates(now: datetime, brand_query: str) -> None:
                         round(pos / rel, 4) if rel else None,
                         round(neu / rel, 4) if rel else None,
                         round(neg / rel, 4) if rel else None,
-                        json.dumps({"payment_issue": random.randint(0, 3), "ux_praise": random.randint(0, 4)}),
+                        json.dumps({
+                            "payment_issue": random.randint(0, 3),
+                            "ux_praise": random.randint(0, 4),
+                        }),
                         round(random.uniform(0.2, 0.6), 3),
                         _utcnow(),
                     ),
@@ -240,7 +406,9 @@ if __name__ == "__main__":
     _l.basicConfig(level="INFO", format="%(levelname)s %(message)s")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--force", action="store_true", help="Re-seed even if data exists")
+    parser.add_argument(
+        "--force", action="store_true", help="Re-seed even if data exists"
+    )
     args = parser.parse_args()
 
     init_db()

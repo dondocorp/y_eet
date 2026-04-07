@@ -58,6 +58,7 @@ def run_fetch_check() -> None:
     import json
     import urllib.request
     from urllib.parse import quote_plus
+
     from config.settings import BRAND_QUERIES
 
     REDDIT_URL = "https://www.reddit.com/search.json?q={q}&sort=new&t=week&limit=10"

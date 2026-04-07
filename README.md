@@ -5,7 +5,7 @@
 [![CI](https://github.com/dondocorp/y_eet/actions/workflows/ci.yml/badge.svg)](https://github.com/dondocorp/y_eet/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dondocorp/y_eet/actions/workflows/deploy.yml/badge.svg)](https://github.com/dondocorp/y_eet/actions/workflows/deploy.yml)
 [![Observability](https://github.com/dondocorp/y_eet/actions/workflows/observability-deploy.yml/badge.svg)](https://github.com/dondocorp/y_eet/actions/workflows/observability-deploy.yml)
-![Stack](https://img.shields.io/badge/stack-Node%20%7C%20Python%20%7C%20Postgres%20%7C%20Redis-informational)
+![Stack](https://img.shields.io/badge/stack-Node%20%7C%20Go%20%7C%20Python%20%7C%20Postgres%20%7C%20Redis-informational)
 ![Observability](https://img.shields.io/badge/observability-Prometheus%20%7C%20Grafana%20%7C%20Tempo%20%7C%20Loki-blueviolet)
 ![IaC](https://img.shields.io/badge/infra-Terraform%20%7C%20EKS%20%7C%20Istio-orange)
 
@@ -31,9 +31,9 @@ Yeet is a transactional crypto-casino backend with a production-grade observabil
 ./scripts/demo.sh
 ```
 
-Starts the full stack: API · PostgreSQL · Redis · OTEL Collector · Prometheus · Grafana · Loki · Tempo · Alertmanager · Social Sentiment pipeline · Synthetic traffic. Opens dashboards automatically.
+Starts the full stack: API · PostgreSQL · Redis · OTEL Collector · Prometheus · Grafana · Loki · Tempo · Alertmanager · Social Sentiment pipeline · Synthetic traffic (Go binary). Opens dashboards automatically.
 
-**Prerequisites:** `docker` (Compose v2), `curl`
+**Prerequisites:** `docker` (Compose v2), `curl`, `go` 1.21+ (for synthetic traffic)
 
 ```bash
 ./scripts/demo.sh --skip-synth    # no synthetic traffic
@@ -169,8 +169,9 @@ y_eet/
 │   ├── scripts/            # scheduler.py, seed_demo.py, test_fetch.py, init_db.py
 │   └── tests/              # Full test suite
 │
-├── y_eet-synth/             # Python synthetic traffic generator
-│   ├── synth/              # Archetypes, profiles, mesh validator, OTel, chaos
+├── y_eet-synth/             # Go synthetic traffic generator and mesh validator
+│   ├── main.go             # CLI entrypoint (cobra commands)
+│   ├── internal/           # config, client, metrics, token, scenarios, runner, mesh, chaos, evaluator, reporter
 │   └── config/             # Profile YAML files
 │
 ├── terraform/              # Infrastructure provisioning
@@ -207,13 +208,14 @@ npm ci
 npm run dev     # hot-reload via ts-node-dev on :8080
 ```
 
-### Synthetic traffic
+### Synthetic traffic (Go)
 
 ```bash
 cd y_eet-synth
-make install                               # creates .venv, installs deps
+go build -o y_eet-synth .                 # one-time build — no venv needed
 make smoke BASE_URL=http://localhost:8080  # 30s smoke test
 make run-normal BASE_URL=http://localhost:8080
+make run-mesh BASE_URL=http://localhost:8080
 ```
 
 ### Run all checks
@@ -244,7 +246,7 @@ npm run lint && npm run typecheck && npm test
 |---|---|
 | [`observability/README.md`](observability/README.md) | Observability platform, telemetry flows, dashboard inventory, alert rules, SLOs, runbook index |
 | [`social-sentiment/README.md`](social-sentiment/README.md) | Brand intelligence pipeline, sentiment model, alert rules, Grafana integration, keyword config |
-| [`y_eet-synth/README.md`](y_eet-synth/README.md) | Synthetic traffic generator, traffic profiles, mesh validation, CI integration |
+| [`y_eet-synth/README.md`](y_eet-synth/README.md) | Go synthetic traffic generator — build, CLI usage, traffic profiles, mesh validation, chaos, CI integration |
 
 
 
