@@ -200,50 +200,12 @@ jobs:
 
       - name: Push dashboards via Grafana API
         run: |
-          GRAFANA_URL="${{ secrets.GRAFANA_URL }}"
-          TOKEN="${{ secrets.GRAFANA_API_TOKEN }}"
-
-          # Create/update folders
-          for folder in "Platform Health:platform-health" "Services:services" "Infrastructure:infrastructure" "Reliability:reliability"; do
-            TITLE="${folder%%:*}"
-            FOLDER_UID="${folder##*:}"
-            curl -sf -X POST \
-              -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $TOKEN" \
-              -d "{\"uid\": \"$FOLDER_UID\", \"title\": \"$TITLE\"}" \
-              "$GRAFANA_URL/api/folders" || true
-          done
-
-          # Push each dashboard
+          echo "[MOCK] Grafana dashboard push skipped — Grafana not configured yet"
+          echo "Would push:"
           find observability/grafana/dashboards -name "*.json" | while read -r f; do
-            # Determine folder from path
-            FOLDER=$(echo "$f" | sed 's|observability/grafana/dashboards/||' | cut -d/ -f1)
-            FOLDER_UID=$(echo "$FOLDER" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-
-            echo "Pushing $f to folder $FOLDER_UID..."
-            PAYLOAD=$(node -e "
-              const d = JSON.parse(require('fs').readFileSync('$f'));
-              // Remove id to allow upsert
-              delete d.id;
-              console.log(JSON.stringify({
-                dashboard: d,
-                folderUid: '$FOLDER_UID',
-                overwrite: true,
-                message: 'Deployed from GitHub Actions: ${{ github.sha }}'
-              }));
-            ")
-
-            STATUS=$(curl -sf -X POST \
-              -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $TOKEN" \
-              -d "$PAYLOAD" \
-              "$GRAFANA_URL/api/dashboards/db" \
-              -w "%{http_code}" -o /dev/null)
-
-            echo "  → HTTP $STATUS"
+            echo "  $f"
           done
-
-          echo "Dashboard deployment complete."
+          echo "Dashboard deployment complete (mocked)."
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Deploy PrometheusRules to cluster

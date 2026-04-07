@@ -20,6 +20,7 @@ import sys
 from typing import Optional
 
 import click
+
 from synth.client import SynthClient
 from synth.config import load_config
 from synth.evaluator import Evaluator
