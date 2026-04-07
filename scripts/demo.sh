@@ -233,6 +233,25 @@ printf "\r\033[K"
 ok "Prometheus ready  →  $PROMETHEUS_URL"
 phase_done
 
+# ── Brand Intelligence demo seed ─────────────────────────────────────────────
+phase "Seeding Brand Intelligence demo data"
+ELAPSED=0
+until $DC exec -T social-sentiment python3 -c "import sys; sys.exit(0)" &>/dev/null; do
+  if [[ $ELAPSED -ge 60 ]]; then
+    warn "social-sentiment container not ready — skipping demo seed"
+    break
+  fi
+  sleep 3
+  ELAPSED=$(( ELAPSED + 3 ))
+done
+
+if [[ $ELAPSED -lt 60 ]]; then
+  $DC exec -T social-sentiment python3 scripts/seed_demo.py \
+    && ok "Demo data seeded  →  Brand Intelligence dashboard ready" \
+    || warn "Demo seed failed — dashboard will show empty state until pipeline runs"
+fi
+phase_done
+
 # ── Synthetic traffic ─────────────────────────────────────────────────────────
 SYNTH_PID=""
 

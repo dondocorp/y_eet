@@ -166,6 +166,7 @@ y_eet/
 │   ├── alerts/             # Alert evaluator, Telegram + Alertmanager sender
 │   ├── metrics/            # Prometheus exporter on :9465
 │   ├── dashboard/          # Streamlit analyst UI on :8501
+│   ├── scripts/            # scheduler.py, seed_demo.py, test_fetch.py, init_db.py
 │   └── tests/              # Full test suite
 │
 ├── y_eet-synth/             # Python synthetic traffic generator
