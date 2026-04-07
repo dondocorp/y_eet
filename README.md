@@ -1,4 +1,4 @@
-# Yeet
+# Y_eet
 
 > Production-grade crypto-casino platform — real-time betting, provably fair games, atomic wallets, full-stack observability, and brand intelligence. Built to handle money.
 
