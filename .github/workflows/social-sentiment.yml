@@ -1,0 +1,372 @@
+name: Social Sentiment CI
+
+on:
+  pull_request:
+    branches: [master, dev]
+    paths:
+      - 'social-sentiment/**'
+      - '.github/workflows/social-sentiment.yml'
+      - 'observability/prometheus/rules/social-sentiment.yaml'
+      - 'observability/grafana/dashboards/brand-intelligence/**'
+
+concurrency:
+  group: social-sentiment-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: social-sentiment
+
+env:
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: ~/.cache/pip
+
+jobs:
+  # ── Lint ────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: social-sentiment/requirements.txt
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff
+        run: ruff check . --select E,F,W,I
+
+  lint-dashboards:
+    name: Lint (dashboards + rules)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          for f in observability/grafana/dashboards/brand-intelligence/*.json; do
+            python3 -c "import json,sys; json.load(open('$f'))" \
+              && echo "OK: $f" \
+              || { echo "INVALID JSON: $f"; exit 1; }
+          done
+
+      - name: Validate Prometheus rule YAML
+        run: |
+          python3 -c "
+          import yaml, sys
+          with open('observability/prometheus/rules/social-sentiment.yaml') as f:
+              cfg = yaml.safe_load(f)
+          assert 'groups' in cfg, 'Missing groups key'
+          print('Rule YAML valid:', len(cfg['groups']), 'group(s)')
+          "
+
+  # ── Tests ────────────────────────────────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - test_relevance
+          - test_scraper_parser
+          - test_storage
+          - test_aggregation
+          - test_alerts
+          - test_metrics
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: social-sentiment/requirements.txt
+
+      - name: Install dependencies (no torch — CI uses stubs)
+        run: |
+          pip install \
+            PyYAML requests schedule \
+            prometheus-client \
+            opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc \
+            opentelemetry-semantic-conventions \
+            pandas \
+            pytest pytest-asyncio pytest-cov
+
+      - name: Run ${{ matrix.suite }}
+        run: |
+          PYTHONPATH=. pytest tests/${{ matrix.suite }}.py -v --tb=short --no-header
+        env:
+          # Prevent any real network calls in tests
+          OTEL_ENABLED: "false"
+          LOG_FORMAT: pretty
+          SCRAPER_ENABLED_PLATFORMS: reddit
+          BRAND_QUERIES: y_eet casino
+
+  test-coverage:
+    name: Coverage Gate (≥30%)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: social-sentiment/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            PyYAML requests schedule \
+            prometheus-client \
+            opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc \
+            opentelemetry-semantic-conventions \
+            pandas \
+            pytest pytest-asyncio pytest-cov
+
+      - name: Run all tests with coverage
+        run: |
+          PYTHONPATH=. pytest tests/ \
+            --cov=. \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term \
+            --cov-fail-under=30 \
+            -q --tb=short
+        env:
+          OTEL_ENABLED: "false"
+          LOG_FORMAT: pretty
+          SCRAPER_ENABLED_PLATFORMS: reddit
+          BRAND_QUERIES: y_eet casino
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: social-sentiment/coverage.xml
+          retention-days: 7
+
+  # ── Validate contracts ────────────────────────────────────────────────────────
+  validate-metrics-contract:
+    name: Validate Prometheus metrics contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install prometheus-client
+        run: pip install prometheus-client opentelemetry-api opentelemetry-sdk opentelemetry-semantic-conventions PyYAML
+
+      - name: Assert all required metrics are registered
+        run: |
+          PYTHONPATH=. python3 -c "
+          from prometheus_client import generate_latest
+          from metrics.exporter import _REGISTRY
+          output = generate_latest(_REGISTRY).decode()
+          required = [
+              'social_scrape_runs_total',
+              'social_scrape_failures_total',
+              'social_posts_collected_total',
+              'social_posts_relevant_total',
+              'social_posts_irrelevant_total',
+              'social_sentiment_positive_total',
+              'social_sentiment_negative_total',
+              'social_sentiment_neutral_total',
+              'social_alerts_triggered_total',
+              'social_pipeline_duration_seconds',
+              'social_brand_relevance_confidence_bucket',
+              'social_classifier_failures_total',
+          ]
+          missing = [m for m in required if m not in output]
+          assert not missing, f'Missing metrics: {missing}'
+          print('All', len(required), 'required metrics present')
+          "
+        env:
+          OTEL_ENABLED: "false"
+
+  validate-db-schema:
+    name: Validate SQLite schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install deps
+        run: pip install opentelemetry-api opentelemetry-sdk opentelemetry-semantic-conventions PyYAML
+
+      - name: Init DB and assert tables
+        run: |
+          PYTHONPATH=. python3 scripts/init_db.py
+          PYTHONPATH=. python3 -c "
+          from storage.db import get_connection
+          conn = get_connection()
+          tables = {r['name'] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()}
+          required = {'scrape_runs','raw_posts','normalized_posts','sentiment_results','hourly_aggregates','alert_events','classifier_runs'}
+          missing = required - tables
+          assert not missing, f'Missing tables: {missing}'
+          print('Schema valid:', sorted(tables))
+          "
+        env:
+          OTEL_ENABLED: "false"
+
+  validate-keyword-config:
+    name: Validate keyword config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PyYAML
+        run: pip install PyYAML
+
+      - name: Validate keywords.yaml
+        run: |
+          python3 -c "
+          import yaml
+          from pathlib import Path
+          cfg = yaml.safe_load(Path('config/keywords.yaml').read_text())
+          assert 'brand_queries' in cfg, 'Missing brand_queries'
+          assert 'derived_labels' in cfg, 'Missing derived_labels'
+          for brand in cfg['brand_queries']:
+              assert 'id' in brand
+              assert len(brand.get('primary_keywords', [])) > 0, f'{brand[\"id\"]} has no primary_keywords'
+              assert len(brand.get('exclusion_keywords', [])) > 0, f'{brand[\"id\"]} has no exclusion_keywords'
+          print('keyword config valid —', len(cfg['brand_queries']), 'brand(s),', len(cfg['derived_labels']), 'label(s)')
+          "
+
+  # ── Smoke tests ───────────────────────────────────────────────────────────────
+  smoke-relevance:
+    name: Smoke — relevance classifier
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install deps
+        run: pip install PyYAML opentelemetry-api opentelemetry-sdk opentelemetry-semantic-conventions
+
+      - name: Run relevance smoke test
+        run: |
+          PYTHONPATH=. python3 -c "
+          from nlp.relevance import BrandRelevanceClassifier
+          clf = BrandRelevanceClassifier()
+
+          # Must be relevant
+          r = clf.classify('y_eet casino is a complete scam, they blocked my withdrawal')
+          assert r.is_relevant, f'Expected relevant, got: {r}'
+          assert 'scam_concern' in r.derived_labels, f'Expected scam_concern, got: {r.derived_labels}'
+          assert r.score >= 0.6, f'Low score: {r.score}'
+
+          # Must be excluded
+          r2 = clf.classify('y_eet baby challenge went viral lol')
+          assert not r2.is_relevant, f'Expected irrelevant, got: {r2}'
+
+          print('Relevance smoke test passed')
+          "
+        env:
+          OTEL_ENABLED: "false"
+
+  smoke-db-init:
+    name: Smoke — DB init
+    runs-on: ubuntu-latest
+    needs: [validate-db-schema]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install deps
+        run: pip install opentelemetry-api opentelemetry-sdk opentelemetry-semantic-conventions PyYAML
+
+      - name: Init DB (idempotent)
+        run: |
+          PYTHONPATH=. python3 scripts/init_db.py
+          PYTHONPATH=. python3 scripts/init_db.py
+          echo "Idempotent init: OK"
+        env:
+          OTEL_ENABLED: "false"
+
+  # ── Docker build ─────────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: [test, validate-metrics-contract, validate-db-schema]
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push — scheduler image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./social-sentiment
+          target: base
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/social-sentiment:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/social-sentiment:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push — Streamlit image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./social-sentiment
+          target: streamlit
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/social-sentiment-dashboard:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/social-sentiment-dashboard:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Notify ────────────────────────────────────────────────────────────────────
+  notify:
+    name: Telegram deploy notify
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.ref == 'refs/heads/master' && success()
+    steps:
+      - name: Send Telegram notification
+        run: |
+          if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+            MSG="✅ social-sentiment deployed: ${GITHUB_SHA::7} by ${GITHUB_ACTOR}"
+            curl -s -X POST \
+              "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+              -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -d "text=${MSG}" || true
+          fi

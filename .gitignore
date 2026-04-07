@@ -1,0 +1,50 @@
+# Node
+node_modules/
+dist/
+.env
+*.env.local
+*.log
+coverage/
+.nyc_output/
+*.js.map
+
+# TypeScript
+*.tsbuildinfo
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+
+# Data / runtime artifacts
+social-sentiment/data/
+y_eet-synth/report*.json
+y_eet-synth/.venv/
+
+# Terraform
+terraform/.terraform/
+terraform/**/.terraform/
+terraform/**/*.tfstate
+terraform/**/*.tfstate.backup
+terraform/**/*.tfplan
+terraform/**/plan.txt
+.terraform.lock.hcl
+
+# Build
+k6-*.json

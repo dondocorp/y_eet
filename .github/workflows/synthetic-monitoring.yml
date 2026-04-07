@@ -1,0 +1,119 @@
+name: Synthetic Monitoring
+
+on:
+  schedule:
+    # Login flow — every 5 minutes
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      check:
+        description: "Which check to run"
+        required: true
+        default: all
+        type: choice
+        options: [all, login-flow, bet-placement, post-deploy]
+      environment:
+        description: "Target environment"
+        required: true
+        default: prod
+        type: choice
+        options: [staging, prod]
+
+concurrency:
+  group: synthetic-${{ github.event.inputs.check || 'scheduled' }}
+  cancel-in-progress: true
+
+jobs:
+  login-flow:
+    name: Synthetic — Login Flow
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.check == 'all' ||
+      github.event.inputs.check == 'login-flow'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run login flow check
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: observability/k6/checks/login-flow.js
+          flags: >
+            -e BASE_URL=${{ github.event.inputs.environment == 'staging' && secrets.BASE_URL_STAGING || secrets.BASE_URL_PROD }}
+            -e SYNTH_EMAIL=${{ secrets.SYNTH_EMAIL }}
+            -e SYNTH_PASSWORD=${{ secrets.SYNTH_PASSWORD }}
+            -e ENVIRONMENT=${{ github.event.inputs.environment || 'prod' }}
+            --iterations 1
+        env:
+          K6_OUT: json=k6-login-results.json
+        continue-on-error: true
+
+      - name: Check for failures and alert
+        run: |
+          if [ -f k6-login-results.json ]; then
+            FAILURES=$(jq '[.[] | select(.type == "Point" and .metric == "checks" and .data.value == 0)] | length' k6-login-results.json 2>/dev/null || echo "0")
+            if [ "$FAILURES" -gt 0 ]; then
+              echo "::error::Login flow synthetic check failed — $FAILURES check(s) failed"
+              # Push alert to Slack
+              curl -sf -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+                -H "Content-Type: application/json" \
+                -d "{\"text\": \":rotating_light: Synthetic check FAILED: *login-flow* on ${{ github.event.inputs.environment || 'prod' }} — $FAILURES checks failed. <${{ secrets.GRAFANA_URL }}/d/synthetic-monitoring|View Dashboard>\"}" || true
+              exit 1
+            fi
+          fi
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-login-${{ github.run_id }}
+          path: k6-login-results.json
+          retention-days: 7
+
+  bet-placement-dryrun:
+    name: Synthetic — Bet Placement Dry-run
+    runs-on: ubuntu-latest
+    # Runs every 10 minutes via schedule (2x less frequent than login)
+    if: |
+      (github.event_name == 'schedule' && contains(github.event.schedule, '*/10')) ||
+      github.event.inputs.check == 'all' ||
+      github.event.inputs.check == 'bet-placement'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run bet placement check
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: observability/k6/checks/bet-placement-dryrun.js
+          flags: >
+            -e BASE_URL=${{ github.event.inputs.environment == 'staging' && secrets.BASE_URL_STAGING || secrets.BASE_URL_PROD }}
+            -e SYNTH_EMAIL=${{ secrets.SYNTH_EMAIL }}
+            -e SYNTH_PASSWORD=${{ secrets.SYNTH_PASSWORD }}
+            -e SYNTH_BET_EMAIL=${{ secrets.SYNTH_BET_EMAIL }}
+            -e SYNTH_BET_PASSWORD=${{ secrets.SYNTH_BET_PASSWORD }}
+            -e ENVIRONMENT=${{ github.event.inputs.environment || 'prod' }}
+            --iterations 1
+        env:
+          K6_OUT: json=k6-bet-results.json
+        continue-on-error: true
+
+      - name: Check for failures and alert
+        run: |
+          if [ -f k6-bet-results.json ]; then
+            FAILURES=$(jq '[.[] | select(.type == "Point" and .metric == "checks" and .data.value == 0)] | length' k6-bet-results.json 2>/dev/null || echo "0")
+            if [ "$FAILURES" -gt 0 ]; then
+              echo "::error::Bet placement synthetic check failed"
+              curl -sf -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+                -H "Content-Type: application/json" \
+                -d "{\"text\": \":rotating_light: Synthetic check FAILED: *bet-placement-dryrun* on ${{ github.event.inputs.environment || 'prod' }} — $FAILURES checks failed. <${{ secrets.GRAFANA_URL }}/d/synthetic-monitoring|View Dashboard>\"}" || true
+              exit 1
+            fi
+          fi
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-bet-${{ github.run_id }}
+          path: k6-bet-results.json
+          retention-days: 7

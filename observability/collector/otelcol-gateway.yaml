@@ -1,0 +1,118 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-gateway
+  namespace: monitoring
+spec:
+  mode: deployment
+  replicas: 2
+  image: otel/opentelemetry-collector-contrib:0.97.0
+  serviceAccount: otel-collector
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      # Accept Zipkin format from Istio Envoy sidecars
+      zipkin:
+        endpoint: 0.0.0.0:9411
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 1800
+        spike_limit_mib: 400
+
+      batch:
+        send_batch_size: 2048
+        timeout: 10s
+        send_batch_max_size: 4096
+
+      # Tail-based sampling — all decisions made here after collecting full trace
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 200000
+        expected_new_traces_per_sec: 1000
+        policies:
+          # Always sample errors
+          - name: errors-always
+            type: status_code
+            status_code:
+              status_codes: [ERROR]
+
+          # Always sample slow traces (>1s)
+          - name: slow-traces
+            type: latency
+            latency:
+              threshold_ms: 1000
+
+          # Always sample synthetic/canary traffic
+          - name: synthetic-always
+            type: string_attribute
+            string_attribute:
+              key: synthetic.check
+              values: ["true"]
+              enabled_regex_matching: false
+
+          # Always sample bet placement and settlement (business critical)
+          - name: betting-always
+            type: string_attribute
+            string_attribute:
+              key: service.name
+              values: ["bet-svc", "settlement-svc"]
+
+          # Always sample wallet mutations
+          - name: wallet-mutations
+            type: string_attribute
+            string_attribute:
+              key: bet.amount_usd
+              values: [""]
+              enabled_regex_matching: false
+              invert_match: true
+
+          # 10% probabilistic for everything else
+          - name: probabilistic-default
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: 10
+
+      resource/normalize:
+        attributes:
+          - key: k8s.cluster.name
+            value: "${env:K8S_CLUSTER_NAME}"
+            action: upsert
+
+    exporters:
+      # Send traces to Tempo
+      otlp/tempo:
+        endpoint: tempo.monitoring.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+      # Debug logging (disabled in prod — set to none)
+      logging:
+        verbosity: none
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp, zipkin]
+          processors: [memory_limiter, resource/normalize, tail_sampling, batch]
+          exporters: [otlp/tempo]
+
+      telemetry:
+        logs:
+          level: warn
+        metrics:
+          address: 0.0.0.0:8888

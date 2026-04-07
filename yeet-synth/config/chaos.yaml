@@ -1,0 +1,39 @@
+# Chaos / fault-path validation profile
+# WARNING: Only run in staging or a dedicated chaos environment.
+# This profile injects faults, fires malformed payloads, and stresses
+# error-handling paths alongside normal traffic.
+#
+# Usage:
+#   python main.py chaos --config config/chaos.yaml --duration 180
+
+base_url: "${SYNTH_BASE_URL:-http://api.y_eet.internal}"
+environment: "staging-chaos"
+
+token_pool_size: 15
+seed_admin_user: true
+
+profile:
+  name: chaos
+  concurrency: 15
+  duration_seconds: 180
+  rps_target: 30.0
+  chaos_enabled: true
+  scenario_weights:
+    anonymous: 0.10
+    authenticated: 0.25
+    active_bettor: 0.40
+    wallet_heavy: 0.20
+    admin: 0.05
+
+thresholds:
+  # Looser thresholds — chaos mode is expected to produce errors
+  max_error_rate: 0.30
+  p99_latency_ms: 5000.0
+  max_timeout_rate: 0.10
+
+mesh:
+  validate_retries: false
+  validate_timeouts: false
+  validate_circuit_breaker: false
+  validate_trace_propagation: false
+  validate_mtls: false

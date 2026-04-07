@@ -1,0 +1,225 @@
+groups:
+  # ── Auth/Session SLO: 99.9% availability (7d rolling) ─────────────────────
+  - name: y_eet.slo.auth
+    rules:
+      - record: slo:y_eet_auth:error_rate1h
+        expr: |
+          1 - (
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[1h]))
+            /
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[1h]))
+          )
+
+      - record: slo:y_eet_auth:error_rate5m
+        expr: |
+          1 - (
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[5m]))
+            /
+            sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[5m]))
+          )
+
+      # Fast burn (1h window, 14.4x burn rate → budget exhausted in 5d)
+      - alert: SLO_Auth_FastBurn
+        expr: slo:y_eet_auth:error_rate1h > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          slo: auth-availability
+          page: "true"
+        annotations:
+          summary: "Auth SLO fast burn — error budget burning > 14.4x"
+          description: "Auth error rate {{ $value | humanizePercentage }} (1h). At this rate, 30d budget exhausted in 2d."
+          runbook: "https://wiki.internal/runbooks/slo-auth"
+
+      # Slow burn (6h window, 6x burn rate → budget exhausted in 5d)
+      - alert: SLO_Auth_SlowBurn
+        expr: |
+          (
+            1 - sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[6h]))
+              /
+              sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[6h]))
+          ) > (6 * 0.001)
+        for: 15m
+        labels:
+          severity: warning
+          slo: auth-availability
+        annotations:
+          summary: "Auth SLO slow burn — error budget burning > 6x"
+          description: "Auth error rate elevated over 6h. Budget exhaustion risk."
+          runbook: "https://wiki.internal/runbooks/slo-auth"
+
+  # ── Bet Placement SLO: 99.5% availability (7d rolling) ────────────────────
+  - name: y_eet.slo.betting
+    rules:
+      - record: slo:y_eet_betting:error_rate1h
+        expr: |
+          1 - (
+            sum(rate(istio_requests_total{destination_service_name="bet-svc", response_code!~"5.."}[1h]))
+            /
+            sum(rate(istio_requests_total{destination_service_name="bet-svc"}[1h]))
+          )
+
+      - alert: SLO_BetPlacement_FastBurn
+        expr: slo:y_eet_betting:error_rate1h > (14.4 * 0.005)
+        for: 2m
+        labels:
+          severity: critical
+          slo: bet-placement-availability
+          page: "true"
+        annotations:
+          summary: "Bet placement SLO fast burn"
+          description: "Bet placement error rate {{ $value | humanizePercentage }} (1h). Revenue impact."
+          runbook: "https://wiki.internal/runbooks/bet-latency"
+
+      - alert: SLO_BetPlacement_SlowBurn
+        expr: |
+          (
+            1 - sum(rate(istio_requests_total{destination_service_name="bet-svc", response_code!~"5.."}[6h]))
+              /
+              sum(rate(istio_requests_total{destination_service_name="bet-svc"}[6h]))
+          ) > (6 * 0.005)
+        for: 15m
+        labels:
+          severity: warning
+          slo: bet-placement-availability
+        annotations:
+          summary: "Bet placement SLO slow burn"
+          runbook: "https://wiki.internal/runbooks/bet-latency"
+
+      # Bet placement P99 latency SLO: 99% of bets complete in < 500ms
+      - alert: SLO_BetPlacement_LatencySLO_Breach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[30m])) by (le)
+          ) > 500
+        for: 5m
+        labels:
+          severity: warning
+          slo: bet-placement-latency
+        annotations:
+          summary: "Bet placement latency SLO breach — P99 > 500ms for 5m"
+          runbook: "https://wiki.internal/runbooks/bet-latency"
+
+  # ── Wallet Balance Read SLO: 99.9% availability ────────────────────────────
+  - name: y_eet.slo.wallet
+    rules:
+      - record: slo:y_eet_wallet_read:error_rate1h
+        expr: |
+          1 - (
+            sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http", response_code!~"5.."}[1h]))
+            /
+            sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http"}[1h]))
+          )
+
+      - alert: SLO_WalletRead_FastBurn
+        expr: slo:y_eet_wallet_read:error_rate1h > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          slo: wallet-read-availability
+          page: "true"
+        annotations:
+          summary: "Wallet read SLO fast burn"
+          runbook: "https://wiki.internal/runbooks/wallet-anomaly"
+
+  # ── Observability pipeline health SLO ─────────────────────────────────────
+  - name: y_eet.slo.observability
+    rules:
+      - alert: OTELCollectorDroppingSpans
+        expr: |
+          sum(rate(otelcol_processor_dropped_spans_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "OTEL Collector dropping spans > 10/s"
+          description: "Collector is dropping {{ $value }} spans/s. Increase memory or reduce cardinality."
+          runbook: "https://wiki.internal/runbooks/collector-failure"
+
+      - alert: OTELCollectorQueueFull
+        expr: |
+          otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "OTEL Collector exporter queue > 80% full"
+          runbook: "https://wiki.internal/runbooks/collector-failure"
+
+      - alert: OTELCollectorDown
+        expr: |
+          up{job="otel-collector"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "OTEL Collector instance down"
+          runbook: "https://wiki.internal/runbooks/collector-failure"
+
+      - alert: PrometheusRemoteWriteLag
+        expr: |
+          prometheus_remote_storage_samples_pending > 50000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Prometheus remote write backlog > 50k samples"
+          runbook: "https://wiki.internal/runbooks/collector-failure"
+
+  # ── Mesh anomaly alerts ───────────────────────────────────────────────────
+  - name: y_eet.mesh
+    rules:
+      - alert: IstioServiceHighRetryRate
+        expr: |
+          sum(rate(istio_requests_total{response_flags=~".*URX.*|.*RL.*|.*UO.*"}[5m])) by (destination_service_name)
+          /
+          sum(rate(istio_requests_total[5m])) by (destination_service_name)
+          > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Istio upstream retry/overflow rate > 5% on {{ $labels.destination_service_name }}"
+          description: "High retry/overflow flag rate — check circuit breakers and upstream capacity."
+          runbook: "https://wiki.internal/runbooks/api-outage"
+
+      - alert: IstioMTLSCertExpiringSoon
+        expr: |
+          (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 14
+        for: 1h
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "mTLS certificate expires in < 14 days: {{ $labels.name }}"
+          runbook: "https://wiki.internal/runbooks/cert-renewal"
+
+      - alert: IstioMTLSCertExpiryCritical
+        expr: |
+          (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 3
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "mTLS certificate expires in < 3 days: {{ $labels.name }}"
+          runbook: "https://wiki.internal/runbooks/cert-renewal"
+
+      - alert: IstioUnexpectedServiceToServiceFailure
+        expr: |
+          sum(rate(istio_requests_total{response_code=~"5.."}[5m])) by (source_app, destination_service_name)
+          > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "{{ $labels.source_app }} → {{ $labels.destination_service_name }}: elevated 5xx on service mesh"
+          runbook: "https://wiki.internal/runbooks/api-outage"

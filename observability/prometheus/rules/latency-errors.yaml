@@ -1,0 +1,239 @@
+groups:
+  # ── Recording rules for SLO computation ──────────────────────────────────
+  - name: y_eet.slo.recordings
+    interval: 30s
+    rules:
+      # Auth SLI: successful requests / total requests (excludes 4xx client errors)
+      - record: job:y_eet_auth_requests:success_rate5m
+        expr: |
+          sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*", status!~"5.."}[5m]))
+          /
+          sum(rate(y_eet_http_requests_total{route=~"/api/v1/auth/.*"}[5m]))
+
+      # Bet placement SLI (mesh-sourced, includes all errors)
+      - record: job:y_eet_bet_placement:success_rate5m
+        expr: |
+          sum(rate(istio_requests_total{destination_service_name="bet-svc", response_code!~"5.."}[5m]))
+          /
+          sum(rate(istio_requests_total{destination_service_name="bet-svc"}[5m]))
+
+      # Wallet read SLI
+      - record: job:y_eet_wallet_read:success_rate5m
+        expr: |
+          sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http", response_code!~"5.."}[5m]))
+          /
+          sum(rate(istio_requests_total{destination_service_name="wallet-svc", request_protocol="http"}[5m]))
+
+      # P99 bet placement latency (app-sourced, end-to-end including wallet+risk)
+      - record: job:y_eet_bet_placement:p99_latency5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le)
+          )
+
+      # P99 wallet transfer latency
+      - record: job:y_eet_wallet_transfer:p99_latency5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_wallet_transfer_duration_ms_bucket[5m])) by (le)
+          )
+
+  # ── Latency alerts ────────────────────────────────────────────────────────
+  - name: y_eet.latency
+    rules:
+      - alert: BetPlacementP99LatencyHigh
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le)
+          ) > 500
+        for: 3m
+        labels:
+          severity: warning
+          service: bet-svc
+          team: payments
+        annotations:
+          summary: "Bet placement P99 latency > 500ms"
+          description: "P99 bet placement latency is {{ $value | humanizeDuration }}ms over the last 5m."
+          runbook: "https://wiki.internal/runbooks/bet-latency"
+          dashboard: "https://grafana.internal/d/betting-wallet"
+
+      - alert: BetPlacementP99LatencyCritical
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_bet_placement_duration_ms_bucket[5m])) by (le)
+          ) > 2000
+        for: 2m
+        labels:
+          severity: critical
+          service: bet-svc
+          team: payments
+          page: "true"
+        annotations:
+          summary: "Bet placement P99 latency CRITICAL > 2s"
+          description: "P99 bet placement latency is {{ $value }}ms. Likely DB or wallet contention."
+          runbook: "https://wiki.internal/runbooks/bet-latency"
+          dashboard: "https://grafana.internal/d/betting-wallet"
+
+      - alert: WalletTransferP99LatencyHigh
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_wallet_transfer_duration_ms_bucket[5m])) by (le)
+          ) > 200
+        for: 3m
+        labels:
+          severity: warning
+          service: wallet-svc
+          team: payments
+        annotations:
+          summary: "Wallet transfer P99 latency > 200ms"
+          description: "P99 wallet transfer latency is {{ $value }}ms."
+          runbook: "https://wiki.internal/runbooks/wallet-anomaly"
+
+      - alert: RiskEvalP99LatencyHigh
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(y_eet_risk_eval_duration_ms_bucket[5m])) by (le)
+          ) > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: risk-svc
+          team: platform
+        annotations:
+          summary: "Risk evaluation P99 latency approaching timeout threshold (80ms)"
+          description: "Risk eval P99 is {{ $value }}ms. Circuit breaker opens at timeout. Bet rejections will spike."
+          runbook: "https://wiki.internal/runbooks/risk-service"
+
+  # ── Error rate alerts ─────────────────────────────────────────────────────
+  - name: y_eet.errors
+    rules:
+      - alert: APIHigh5xxRate
+        expr: |
+          sum(rate(istio_requests_total{destination_service_namespace!="monitoring", response_code=~"5.."}[5m]))
+          /
+          sum(rate(istio_requests_total{destination_service_namespace!="monitoring"}[5m]))
+          > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API 5xx error rate > 1%"
+          description: "5xx rate is {{ $value | humanizePercentage }} across all services."
+          runbook: "https://wiki.internal/runbooks/api-outage"
+          dashboard: "https://grafana.internal/d/api-reliability"
+
+      - alert: APIHigh5xxRateCritical
+        expr: |
+          sum(rate(istio_requests_total{destination_service_namespace!="monitoring", response_code=~"5.."}[5m]))
+          /
+          sum(rate(istio_requests_total{destination_service_namespace!="monitoring"}[5m]))
+          > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "API 5xx rate CRITICAL > 5%"
+          description: "5xx rate is {{ $value | humanizePercentage }}. Likely widespread service failure."
+          runbook: "https://wiki.internal/runbooks/api-outage"
+
+      - alert: BetServiceHighErrorRate
+        expr: |
+          sum(rate(istio_requests_total{destination_service_name="bet-svc", response_code=~"5.."}[5m]))
+          /
+          sum(rate(istio_requests_total{destination_service_name="bet-svc"}[5m]))
+          > 0.02
+        for: 2m
+        labels:
+          severity: critical
+          service: bet-svc
+          team: payments
+          page: "true"
+        annotations:
+          summary: "Bet service 5xx rate > 2%"
+          description: "Bet svc 5xx rate: {{ $value | humanizePercentage }}. Revenue impact."
+          runbook: "https://wiki.internal/runbooks/bet-latency"
+
+      - alert: AuthHighFailureRate
+        expr: |
+          sum(rate(y_eet_auth_failures_total[5m]))
+          /
+          (sum(rate(y_eet_auth_tokens_issued_total[5m])) + sum(rate(y_eet_auth_failures_total[5m])))
+          > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: auth-svc
+          team: platform
+        annotations:
+          summary: "Auth failure rate > 10%"
+          description: "Auth failure rate is {{ $value | humanizePercentage }}. May indicate credential stuffing."
+          runbook: "https://wiki.internal/runbooks/auth-failures"
+
+      - alert: AuthHighFailureRateCritical
+        expr: |
+          sum(rate(y_eet_auth_failures_total[5m]))
+          /
+          (sum(rate(y_eet_auth_tokens_issued_total[5m])) + sum(rate(y_eet_auth_failures_total[5m])))
+          > 0.3
+        for: 2m
+        labels:
+          severity: critical
+          service: auth-svc
+          team: platform
+          page: "true"
+        annotations:
+          summary: "Auth failure rate CRITICAL > 30% — likely attack"
+          description: "Auth failure rate {{ $value | humanizePercentage }}. Check for brute force or outage."
+          runbook: "https://wiki.internal/runbooks/auth-failures"
+
+      - alert: RiskCircuitBreakerOpen
+        expr: |
+          increase(y_eet_risk_circuit_breaker_open_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: risk-svc
+          team: platform
+        annotations:
+          summary: "Risk service circuit breaker opened"
+          description: "Risk eval circuit breaker opened {{ $value }} times in 5m. Bets will be rejected."
+          runbook: "https://wiki.internal/runbooks/risk-service"
+
+  # ── Duplicate bet anomaly ─────────────────────────────────────────────────
+  - name: y_eet.business-anomalies
+    rules:
+      - alert: BetIdempotencyHitSpikeAnomaly
+        expr: |
+          sum(rate(y_eet_bet_placements_total{status="idempotency_hit"}[5m]))
+          /
+          sum(rate(y_eet_bet_placements_total[5m]))
+          > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          service: bet-svc
+          team: payments
+        annotations:
+          summary: "Bet idempotency hit rate > 15% — client retry storm?"
+          description: "{{ $value | humanizePercentage }} of bets are idempotency hits. Check client retry logic."
+          runbook: "https://wiki.internal/runbooks/bet-anomalies"
+
+      - alert: WalletTransferFailureSpike
+        expr: |
+          sum(rate(y_eet_wallet_transfers_total{status="error"}[5m]))
+          /
+          sum(rate(y_eet_wallet_transfers_total[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: wallet-svc
+          team: payments
+          page: "true"
+        annotations:
+          summary: "Wallet transfer failure rate > 5%"
+          description: "Wallet transfers failing at {{ $value | humanizePercentage }}. Ledger inconsistency risk."
+          runbook: "https://wiki.internal/runbooks/wallet-anomaly"

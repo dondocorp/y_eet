@@ -1,0 +1,170 @@
+{
+  "uid": "istio-traffic",
+  "title": "[INFRA] Service Mesh — Istio Traffic",
+  "description": "Istio service mesh traffic, mTLS status, service-to-service error rates, circuit breakers",
+  "tags": ["infrastructure", "istio", "mesh", "owner:platform-sre"],
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": { "uid": "prometheus" },
+        "query": "label_values(istio_requests_total, destination_service_namespace)",
+        "includeAll": true
+      },
+      {
+        "name": "source_app",
+        "type": "query",
+        "datasource": { "uid": "prometheus" },
+        "query": "label_values(istio_requests_total{source_namespace=~\"$namespace\"}, source_app)",
+        "includeAll": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Mesh RPS",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\"}[2m]))",
+        "legendFormat": "Total RPS"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Mesh-wide Error Rate",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\", response_code=~\"5..\"}[5m])) / sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\"}[5m]))",
+        "legendFormat": "Error rate"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Mesh P99 Latency",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum(rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=~\"$namespace\"}[5m])) by (le))",
+        "legendFormat": "P99"
+      }],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "mTLS Connection Success Rate",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "1 - sum(rate(istio_requests_total{connection_security_policy=\"unknown\"}[5m])) / sum(rate(istio_requests_total[5m]))",
+        "legendFormat": "mTLS rate"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Request Rate by Service (inbound)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\"}[2m])) by (destination_service_name)",
+        "legendFormat": "{{ destination_service_name }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "5xx Error Rate by Source → Destination",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{source_app=~\"$source_app\", destination_service_namespace=~\"$namespace\", response_code=~\"5..\"}[2m])) by (source_app, destination_service_name)",
+        "legendFormat": "{{ source_app }} → {{ destination_service_name }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "P50/P95/P99 Latency by Destination",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=~\"$namespace\"}[5m])) by (destination_service_name, le))",
+          "legendFormat": "{{ destination_service_name }} P50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=~\"$namespace\"}[5m])) by (destination_service_name, le))",
+          "legendFormat": "{{ destination_service_name }} P95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=~\"$namespace\"}[5m])) by (destination_service_name, le))",
+          "legendFormat": "{{ destination_service_name }} P99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Istio Response Flags (retries, overflows, TLS errors)",
+      "description": "URX=upstream retry exhausted, RL=rate limited, UO=upstream overflow, UF=upstream connection failure",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "targets": [{
+        "expr": "sum(rate(istio_requests_total{destination_service_namespace=~\"$namespace\", response_flags!=\"-\", response_flags!~\"\"}[5m])) by (response_flags, destination_service_name)",
+        "legendFormat": "{{ destination_service_name }}: {{ response_flags }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 9,
+      "type": "nodeGraph",
+      "title": "Service Dependency Map",
+      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 12 },
+      "datasource": { "uid": "tempo" },
+      "targets": [{
+        "queryType": "serviceMap",
+        "serviceMapQuery": "{namespace=~\"$namespace\"}"
+      }]
+    }
+  ]
+}
