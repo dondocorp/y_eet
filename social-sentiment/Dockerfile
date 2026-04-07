@@ -23,8 +23,8 @@ RUN pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu &&
     pip install -r /tmp/req_no_torch.txt
 
 # Install Playwright browsers (Chromium only)
-RUN playwright install chromium && \
-    playwright install-deps chromium
+# install-deps is skipped — system deps are handled above via apt-get
+RUN playwright install chromium
 
 COPY . .
 

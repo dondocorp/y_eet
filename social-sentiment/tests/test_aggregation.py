@@ -20,7 +20,7 @@ def _seed_sentiment_data(db_path, posts: list[dict]) -> None:
             conn.execute(
                 "INSERT OR IGNORE INTO scrape_runs "
                 "(run_id, platform, query, started_at, status) "
-                "VALUES ('agg-run-001','reddit','y_eet casino',"
+                "VALUES ('agg-run-001','reddit','yeet casino',"
                 "'2024-01-15T14:00:00Z','success')"
             )
             for p in posts:
@@ -77,7 +77,7 @@ def test_aggregate_basic(tmp_db):
         {
             "post_id": "a1",
             "platform": "reddit",
-            "text": "love y_eet casino",
+            "text": "love yeet casino",
             "posted_at": "2024-01-15T14:30:00Z",
             "label": "positive",
             "score": 0.9,
@@ -85,7 +85,7 @@ def test_aggregate_basic(tmp_db):
         {
             "post_id": "a2",
             "platform": "reddit",
-            "text": "y_eet casino scam",
+            "text": "yeet casino scam",
             "posted_at": "2024-01-15T14:45:00Z",
             "label": "negative",
             "score": 0.85,
@@ -94,7 +94,7 @@ def test_aggregate_basic(tmp_db):
         {
             "post_id": "a3",
             "platform": "reddit",
-            "text": "ok y_eet casino ok",
+            "text": "ok yeet casino ok",
             "posted_at": "2024-01-15T14:50:00Z",
             "label": "neutral",
             "score": 0.6,
@@ -102,7 +102,7 @@ def test_aggregate_basic(tmp_db):
     ]
     try:
         _seed_sentiment_data(tmp_db, posts)
-        result = aggregate_hour("2024-01-15T14:00:00Z", "ALL", "y_eet casino")
+        result = aggregate_hour("2024-01-15T14:00:00Z", "ALL", "yeet casino")
         assert result is not None
         assert result["total_posts"] == 3
         assert result["positive_count"] == 1
@@ -119,7 +119,7 @@ def test_aggregate_empty_hour(tmp_db):
     orig = sdb.DB_PATH
     sdb.DB_PATH = tmp_db
     try:
-        result = aggregate_hour("2020-01-01T00:00:00Z", "ALL", "y_eet casino")
+        result = aggregate_hour("2020-01-01T00:00:00Z", "ALL", "yeet casino")
         assert result is None
     finally:
         sdb.DB_PATH = orig
@@ -143,7 +143,7 @@ def test_aggregate_derived_label_counts(tmp_db):
     ]
     try:
         _seed_sentiment_data(tmp_db, posts)
-        result = aggregate_hour("2024-01-15T14:00:00Z", "twitter", "y_eet casino")
+        result = aggregate_hour("2024-01-15T14:00:00Z", "twitter", "yeet casino")
         assert result is not None
         labels = result["top_derived_labels"]
         if isinstance(labels, str):

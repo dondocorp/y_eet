@@ -31,9 +31,6 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
-  processors:
-    - service-graphs
-    - span-metrics
 
 storage:
   trace:
@@ -45,6 +42,8 @@ storage:
 
 overrides:
   defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
     ingestion:
       rate_limit_bytes: 5000000
       burst_size_bytes: 10000000
