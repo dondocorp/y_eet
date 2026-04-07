@@ -128,19 +128,22 @@ else
   warn "No browser-open utility — URLs will be printed instead"
 fi
 
-# y_eet-synth availability
+# y_eet-synth availability (Go binary)
 SYNTH_AVAILABLE=false
+SYNTH_BIN="$REPO_ROOT/y_eet-synth/y_eet-synth"
 if [[ "$SKIP_SYNTH" == "false" ]]; then
-  if [[ -d "$REPO_ROOT/y_eet-synth/.venv" ]]; then
+  if [[ -x "$SYNTH_BIN" ]]; then
     SYNTH_AVAILABLE=true
-    ok "y_eet-synth venv found"
-  elif command -v python3 &>/dev/null; then
-    info "y_eet-synth venv not found — running make install..."
-    (cd "$REPO_ROOT/y_eet-synth" && make install) || { err "make install failed — synthetic traffic disabled"; SKIP_SYNTH=true; }
-    if [[ "$SKIP_SYNTH" == "false" ]]; then
-      SYNTH_AVAILABLE=true
-      ok "y_eet-synth venv ready"
-    fi
+    ok "y_eet-synth binary found"
+  elif command -v go &>/dev/null; then
+    info "y_eet-synth binary not found — building with Go..."
+    (cd "$REPO_ROOT/y_eet-synth" && go build -o y_eet-synth .) \
+      && SYNTH_AVAILABLE=true && ok "y_eet-synth built" \
+      || { err "go build failed — synthetic traffic disabled"; SKIP_SYNTH=true; }
+  else
+    warn "Go not installed and y_eet-synth binary missing — synthetic traffic disabled"
+    warn "Install Go 1.21+ or pre-build: cd y_eet-synth && go build -o y_eet-synth ."
+    SKIP_SYNTH=true
   fi
 fi
 
@@ -257,15 +260,13 @@ SYNTH_PID=""
 
 if [[ "$SKIP_SYNTH" == "false" && "$SYNTH_AVAILABLE" == "true" ]]; then
   phase "Synthetic traffic"
-  cd "$REPO_ROOT/y_eet-synth"
-  SYNTH_BASE_URL="$API_URL" .venv/bin/python main.py run \
+  "$SYNTH_BIN" run \
     --profile normal \
     --duration 600 \
     --base-url "$API_URL" \
     --json-report /tmp/y_eet-synth-report.json \
     &>/tmp/y_eet-synth.log &
   SYNTH_PID=$!
-  cd "$REPO_ROOT"
   ok "y_eet-synth running  (PID $SYNTH_PID)"
   info "Profile: normal · Duration: 10 min · Log: /tmp/y_eet-synth.log"
   phase_done
@@ -323,7 +324,7 @@ echo ""
 if [[ -n "$SYNTH_PID" ]]; then
   echo -e "  ${BLD}Synthetic traffic${RST}      ${GRN}active${RST}  ${DIM}(PID $SYNTH_PID · log: /tmp/y_eet-synth.log)${RST}"
 else
-  echo -e "  ${BLD}Synthetic traffic${RST}      ${DIM}not running  (run: cd y_eet-synth && make install)${RST}"
+  echo -e "  ${BLD}Synthetic traffic${RST}      ${DIM}not running  (run: cd y_eet-synth && go build -o y_eet-synth . && make smoke)${RST}"
 fi
 
 echo ""

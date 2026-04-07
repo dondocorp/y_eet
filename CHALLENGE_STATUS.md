@@ -78,12 +78,49 @@ Five GitHub Actions workflows:
 | `ci.yml` | PR / push to master or dev | Lint → typecheck → instrumentation check → observability config validation → unit tests (≥65% coverage) |
 | `deploy.yml` | Push to master | Build → staging → prod + k6 post-deploy gate (blocks on failure) + SLO burn-rate check + Grafana deploy annotation |
 | `observability-deploy.yml` | Changes to `observability/` or `terraform/` | Terraform plan/apply → dashboard push via Grafana API → PrometheusRules + Istio CRD apply |
-| `synthetic-monitoring.yml` | Schedule every 5 minutes | Login flow + bet placement dry-run → Slack alert on failure |
+| `synthetic-monitoring.yml` | Schedule every 5 minutes | `y_eet-synth smoke` → login flow + bet placement dry-run → Slack alert on failure |
 | `social-sentiment.yml` | Changes to `social-sentiment/` | Ruff lint → 6 test suites (≥70% coverage) → metrics contract + schema + keyword config validation → Docker build → GHCR push |
 
 ---
 
-### 5. Distributed systems on AWS
+### 5. Synthetic traffic generator — y_eet-synth (Go)
+
+`y_eet-synth` is a purpose-built Go CLI that drives synthetic traffic, validates Istio mesh policies, injects fault scenarios, and gates canary rollouts.
+
+**Commands**
+
+| Command | Purpose |
+|---|---|
+| `smoke` | 30s / 5 rps quick health check — exit 0 or 1 |
+| `run --profile <name>` | Sustained traffic at a named profile |
+| `mesh --validate-all` | Retries, timeouts, circuit breaker, mTLS, trace propagation, ingress |
+| `canary --expected-version v2 --expected-weight 0.10` | Validates Istio traffic split is within tolerance |
+| `chaos --duration 180` | Fault injection: stale token, malformed payload, duplicate replay, oversized body |
+| `trace --sample-size 200` | W3C traceparent propagation check |
+| `retry --duration 60` | Envoy retry + timeout header verification |
+| `list-profiles` | Prints all profiles with concurrency / RPS / duration |
+
+**Traffic profiles**
+
+| Profile | Concurrency | RPS | Duration | Notes |
+|---|---|---|---|---|
+| smoke | 5 | 5 | 30 s | CI post-deploy gate |
+| low | 5 | 10 | 120 s | |
+| normal | 20 | 50 | 300 s | |
+| burst | 80 | 200 | 180 s | 4× burst every 30 s for 15 s |
+| chaos | 15 | 30 | 180 s | fault injection enabled |
+| mesh | 10 | 20 | 120 s | mesh validation enabled |
+| canary | 10 | 25 | 120 s | canary + mesh validation |
+| onboarding | 150 | 200 | 300 s | 55% registration funnel |
+| flood | 300 | 500 | 600 s | 5× burst — load test only |
+
+**Architecture** (`y_eet-synth/internal/`): `config` → `profiles` → `runner` (token-bucket rate limiter + goroutine pool) → `scenarios` (weighted picker) → `client` (HTTP with Envoy header capture) → `evaluator` → `reporter` (stdout + JSON).
+
+**Exit codes:** 0 pass · 1 fail · 2 warn · 3 insufficient data — consumed directly by CI.
+
+---
+
+### 6. Distributed systems on AWS
 
 | Component | AWS service | Notes |
 |---|---|---|
@@ -97,7 +134,7 @@ Five GitHub Actions workflows:
 
 ---
 
-### 6. Mentoring junior engineers
+### 7. Mentoring junior engineers
 
 The `observability/README.md` contains a step-by-step **Adding a New Service** checklist (7 steps: instrument → resource attributes → RED metrics → dashboard → SLO → runbook → synthetic check). Each step references the exact file to copy or extend, making it actionable without senior guidance.
 
@@ -110,7 +147,7 @@ The `observability/README.md` contains a step-by-step **Adding a New Service** c
 | **Linux scripting** | Delivered | `scripts/demo.sh` (200-line Bash with preflight, wait loops, process management), `social-sentiment/scripts/run_pipeline.sh` |
 | **Python** | Delivered | Entire `social-sentiment/` subsystem — scraper, NLP, pipeline, alerts, metrics, dashboard, 6 test suites |
 | **JavaScript / TypeScript** | Delivered | `src/` — Fastify 4 API, full business logic, typed repositories, OTEL SDK |
-| **Go** | Not demonstrated | JD lists Python / Go / JavaScript; Python and TypeScript are covered |
+| **Go** | Delivered | `y_eet-synth/` — full Go CLI: cobra commands, token-bucket rate limiter, concurrent runner, Istio mesh validator, chaos injector, canary split checker, JSON report output |
 | **Terraform** | Delivered | `terraform/` — modular, remote state, OIDC, separate prod/staging root modules |
 | **CDK / CloudFormation** | Not demonstrated | Terraform used exclusively for IaC |
 | **Microservice architecture** | Delivered | API (Node) + social-sentiment (Python) as separate containers with independent metrics endpoints, tracing namespaces, and Docker Compose services |
