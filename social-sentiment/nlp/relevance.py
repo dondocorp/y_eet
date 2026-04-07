@@ -48,7 +48,7 @@ class BrandRelevanceClassifier:
     Loading embeddings is lazy and guarded by a flag.
     """
 
-    def __init__(self, brand_id: str = "y_eet_casino") -> None:
+    def __init__(self, brand_id: str = "yeet_casino") -> None:
         cfg = yaml.safe_load(KEYWORDS_PATH.read_text())
         brand = next(b for b in cfg["brand_queries"] if b["id"] == brand_id)
 
@@ -82,7 +82,7 @@ class BrandRelevanceClassifier:
 
     @staticmethod
     def _norm(s: str) -> str:
-        """Strip underscores for fuzzy brand-name matching (y_eet → yeet)."""
+        """Normalise text: strip underscores so user typos like 'y_eet' still match."""
         return s.replace("_", "")
 
     def classify(self, text: str) -> RelevanceResult:

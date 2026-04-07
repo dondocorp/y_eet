@@ -16,7 +16,7 @@ connect_timeout_seconds: 5.0
 tls_verify: true
 x_synthetic: true
 
-token_pool_size: 20
+token_pool_size: 50
 seed_admin_user: true
 json_report_path: "report.json"
 
@@ -30,11 +30,14 @@ profile:
   mesh_validation: false
   canary_validation: false
   scenario_weights:
-    anonymous: 0.10
-    authenticated: 0.25
-    active_bettor: 0.45
-    wallet_heavy: 0.15
-    admin: 0.05
+    anonymous: 0.05
+    authenticated: 0.15
+    registration_funnel: 0.15
+    active_bettor: 0.25
+    live_event_bettor: 0.20
+    high_roller: 0.10
+    wallet_heavy: 0.08
+    admin: 0.02
 
 thresholds:
   max_error_rate: 0.02

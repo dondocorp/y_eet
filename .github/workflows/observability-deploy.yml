@@ -113,57 +113,29 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TERRAFORM }}
-          aws-region: us-east-1
+        run: echo "[MOCK] AWS credentials skipped — AWS not configured yet"
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.0
+        run: echo "[MOCK] Terraform setup skipped — AWS not configured yet"
 
       - name: Terraform Init
-        working-directory: terraform/environments/${{ env.TF_ENV }}
-        run: terraform init
+        run: echo "[MOCK] terraform init skipped — AWS not configured yet"
 
       - name: Terraform Validate
-        working-directory: terraform/environments/${{ env.TF_ENV }}
-        run: terraform validate
+        run: echo "[MOCK] terraform validate skipped — AWS not configured yet"
 
       - name: Terraform Plan
         id: plan
-        working-directory: terraform/environments/${{ env.TF_ENV }}
         run: |
-          terraform plan \
-            -var="eks_cluster_name=${{ secrets.EKS_CLUSTER_STAGING }}" \
-            -var="grafana_admin_password=${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
-            -out=tfplan \
-            -no-color 2>&1 | tee plan.txt
+          echo "[MOCK] terraform plan skipped — AWS not configured yet"
+          echo "Would plan: environment=${{ env.TF_ENV }}"
 
       - name: Upload plan artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ env.TF_ENV }}-${{ github.sha }}
-          path: terraform/environments/${{ env.TF_ENV }}/tfplan
-          retention-days: 7
+        run: echo "[MOCK] Plan artifact upload skipped — no plan generated"
 
       - name: Post plan to PR
-        uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('terraform/environments/${{ env.TF_ENV }}/plan.txt', 'utf8');
-            const truncated = plan.length > 60000
-              ? plan.substring(0, 60000) + '\n...(truncated)'
-              : plan;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Terraform Plan — \`${{ env.TF_ENV }}\`\n\`\`\`\n${truncated}\n\`\`\``
-            });
+        run: echo "[MOCK] PR plan comment skipped — AWS not configured yet"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Terraform apply (manual trigger only, environment protection required)
@@ -186,29 +158,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TERRAFORM }}
-          aws-region: us-east-1
+        run: echo "[MOCK] AWS credentials skipped — AWS not configured yet"
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.0
+        run: echo "[MOCK] Terraform setup skipped — AWS not configured yet"
 
       - name: Download plan artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan-${{ env.TF_ENV }}-${{ github.sha }}
-          path: terraform/environments/${{ env.TF_ENV }}
+        run: echo "[MOCK] Plan artifact download skipped — AWS not configured yet"
 
       - name: Terraform Init
-        working-directory: terraform/environments/${{ env.TF_ENV }}
-        run: terraform init
+        run: echo "[MOCK] terraform init skipped — AWS not configured yet"
 
       - name: Terraform Apply
-        working-directory: terraform/environments/${{ env.TF_ENV }}
-        run: terraform apply -auto-approve tfplan
+        run: |
+          echo "[MOCK] terraform apply skipped — AWS not configured yet"
+          echo "Would apply: environment=${{ env.TF_ENV }}"
 
       - name: Publish Grafana annotation for infra change
         run: |
@@ -242,11 +206,11 @@ jobs:
           # Create/update folders
           for folder in "Platform Health:platform-health" "Services:services" "Infrastructure:infrastructure" "Reliability:reliability"; do
             TITLE="${folder%%:*}"
-            UID="${folder##*:}"
+            FOLDER_UID="${folder##*:}"
             curl -sf -X POST \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer $TOKEN" \
-              -d "{\"uid\": \"$UID\", \"title\": \"$TITLE\"}" \
+              -d "{\"uid\": \"$FOLDER_UID\", \"title\": \"$TITLE\"}" \
               "$GRAFANA_URL/api/folders" || true
           done
 
@@ -298,24 +262,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
-          aws-region: us-east-1
+        run: echo "[MOCK] AWS credentials skipped — AWS not configured yet"
 
       - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --name ${{ secrets.EKS_CLUSTER_PROD }} \
-            --region ${{ secrets.AWS_REGION }}
+        run: echo "[MOCK] kubeconfig update skipped — AWS not configured yet"
 
       - name: Apply PrometheusRules
         run: |
-          kubectl apply -f observability/prometheus/rules/ -n monitoring
-          echo "PrometheusRules applied."
+          echo "[MOCK] PrometheusRules apply skipped — AWS not configured yet"
+          echo "Would apply: observability/prometheus/rules/ → monitoring namespace"
 
       - name: Apply Istio telemetry config
         run: |
-          kubectl apply -f observability/istio/telemetry.yaml
-          kubectl apply -f observability/istio/peer-authentication.yaml
-          echo "Istio observability config applied."
+          echo "[MOCK] Istio config apply skipped — AWS not configured yet"
+          echo "Would apply: telemetry.yaml + peer-authentication.yaml"

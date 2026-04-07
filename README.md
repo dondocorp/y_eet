@@ -1,4 +1,4 @@
-# Yeet
+# Y_eet
 
 > Production-grade crypto-casino platform — real-time betting, provably fair games, atomic wallets, full-stack observability, and brand intelligence. Built to handle money.
 
@@ -244,3 +244,10 @@ npm run lint && npm run typecheck && npm test
 | [`observability/README.md`](observability/README.md) | Observability platform, telemetry flows, dashboard inventory, alert rules, SLOs, runbook index |
 | [`social-sentiment/README.md`](social-sentiment/README.md) | Brand intelligence pipeline, sentiment model, alert rules, Grafana integration, keyword config |
 | [`y_eet-synth/README.md`](y_eet-synth/README.md) | Synthetic traffic generator, traffic profiles, mesh validation, CI integration |
+
+
+
+
+
+<img width="1932" height="1350" alt="image" src="https://github.com/user-attachments/assets/d9c0680b-553f-4a8a-a4c0-822102c9c9a1" />
+
