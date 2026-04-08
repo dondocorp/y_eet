@@ -6,6 +6,7 @@ Intentionally lightweight — no ORM. Direct sqlite3 with typed helpers.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -16,6 +17,8 @@ from typing import Any, Generator
 DB_PATH = Path(__file__).parent.parent / "data" / "social_sentiment.db"
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+logger = logging.getLogger(__name__)
+
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -25,16 +28,36 @@ def new_run_id() -> str:
     return str(uuid.uuid4())
 
 
-def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
-    if db_path is None:
-        db_path = DB_PATH
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+def _recover_corrupt_db(db_path: Path) -> None:
+    """Delete a corrupt DB and its WAL/SHM sidecar files so init_db() starts fresh."""
+    logger.warning("db_corrupt_detected path=%s — deleting and recreating", db_path)
+    for suffix in ("", "-wal", "-shm"):
+        p = Path(str(db_path) + suffix)
+        if p.exists():
+            p.unlink()
+            logger.warning("db_recover_deleted path=%s", p)
+
+
+def _open_connection(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA synchronous=NORMAL")
     return conn
+
+
+def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
+    if db_path is None:
+        db_path = DB_PATH
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        return _open_connection(db_path)
+    except sqlite3.DatabaseError as exc:
+        if "malformed" in str(exc).lower() or "disk image" in str(exc).lower():
+            _recover_corrupt_db(db_path)
+            return _open_connection(db_path)
+        raise
 
 
 @contextmanager
@@ -58,8 +81,16 @@ def init_db(db_path: Path | None = None) -> None:
     if db_path is None:
         db_path = DB_PATH
     schema = SCHEMA_PATH.read_text()
-    with transaction(db_path) as conn:
-        conn.executescript(schema)
+    try:
+        with transaction(db_path) as conn:
+            conn.executescript(schema)
+    except sqlite3.DatabaseError as exc:
+        if "malformed" in str(exc).lower() or "disk image" in str(exc).lower():
+            _recover_corrupt_db(db_path)
+            with transaction(db_path) as conn:
+                conn.executescript(schema)
+        else:
+            raise
 
 
 # ── scrape_runs ─────────────────────────────────────────────────────────────

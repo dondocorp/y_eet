@@ -1,8 +1,8 @@
 # y_eet-synth
 
-> Production-grade synthetic traffic generator and service mesh validator for the Yeet Crypto-Casino Platform.
+> Production-grade synthetic traffic generator and service mesh validator for the Yeet Platform — written in Go.
 
-An internal reliability and platform engineering tool. Generates realistic mixed synthetic traffic, validates Istio service mesh behaviour, produces OTel telemetry, and emits a machine-readable pass/fail verdict for CI/CD gates.
+Generates realistic mixed traffic against the Yeet API, validates Istio mesh policies, injects chaos faults, and emits a structured pass/fail verdict for CI/CD gates. Compiled to a single binary — no runtime dependencies.
 
 ---
 
@@ -10,37 +10,113 @@ An internal reliability and platform engineering tool. Generates realistic mixed
 
 | Capability | Detail |
 |---|---|
-| **Realistic traffic** | 5 user archetypes, weighted scenario selection, think-time simulation |
-| **Full API coverage** | Auth, users, wallet, bets, game sessions, risk, config, health, admin |
-| **Idempotency support** | Correct `Idempotency-Key` usage + replay detection |
+| **Realistic traffic** | 8 user archetypes with weighted scenario selection |
+| **Full API coverage** | Auth, users, wallet, bets, game sessions, risk, config flags, health, admin |
+| **Idempotency support** | `Idempotency-Key` on all mutating requests; replay detection via `X-Idempotency-Replay` |
 | **Istio mesh validation** | Retry, timeout, circuit breaker, canary split, mTLS, trace propagation, ingress |
-| **Chaos / fault injection** | Stale tokens, malformed payloads, duplicate replay, rate-limit trigger, missing headers |
-| **OTel instrumentation** | W3C `traceparent` propagation on every request; OTLP export to your collector |
-| **Pass/fail evaluation** | Threshold-based verdict with per-check breakdown; non-zero exit code on failures |
-| **CI/CD ready** | Single exit code, JSON report, Makefile CI targets |
+| **Chaos / fault injection** | Stale tokens, malformed payloads, duplicate replay, missing idempotency key, oversized payloads |
+| **W3C trace propagation** | Every request carries `traceparent`; checks the service echoes it back |
+| **Pass/fail evaluation** | Threshold-based verdict with per-check breakdown and standard exit codes |
+| **CI/CD ready** | Single binary, JSON report output, Makefile CI targets |
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Set up
+# Build (requires Go 1.21+)
 cd y_eet-synth
-make install
-cp .env.example .env
-# Edit .env — set SYNTH_BASE_URL at minimum
+make build
 
-# 2. Smoke test (30s)
-make smoke
+# Run a 30-second smoke test
+make smoke BASE_URL=http://localhost:8080
 
-# 3. Normal traffic (5 min)
-make run-normal
+# Other common targets (build automatically if needed)
+make run-normal BASE_URL=http://localhost:8080
+make run-mesh   BASE_URL=http://localhost:8080
+make run-canary BASE_URL=http://localhost:8080 CANARY_VER=v2.1.0 CANARY_W=0.15
+```
 
-# 4. Validate service mesh
-make run-mesh
+No virtual environment. No package installation at runtime. Go produces a self-contained binary.
 
-# 5. Canary split validation
-make run-canary CANARY_VERSION=v2.1.0 CANARY_WEIGHT=0.15
+---
+
+## Build
+
+```bash
+# Standard build
+make build                                       # produces ./y_eet-synth
+
+# Manual build
+go mod download
+go build -o y_eet-synth .
+
+# Cross-compile for Linux CI runners
+GOOS=linux GOARCH=amd64 go build -o y_eet-synth-linux .
+
+# Clean artifacts
+make clean
+```
+
+**Requirement:** Go 1.21+
+
+---
+
+## CLI Reference
+
+All commands share a common set of flags:
+
+```
+--base-url         API base URL                          (env: SYNTH_BASE_URL)   [default: http://localhost:8080]
+--config           Path to a YAML config file            (env: SYNTH_CONFIG)
+--log-level        DEBUG | INFO | WARNING | ERROR        [default: INFO]
+--no-tls-verify    Disable TLS certificate verification
+--json-report      Write JSON report to this path        (env: SYNTH_JSON_REPORT)
+```
+
+### Commands
+
+```bash
+# Quick smoke test — 30s, 5 rps, all endpoint categories
+y_eet-synth smoke --base-url https://api.yeet.com
+
+# Run with a named profile
+y_eet-synth run --profile normal --duration 300
+y_eet-synth run --profile burst  --duration 180
+y_eet-synth run --profile low    --rps 5
+
+# Istio / service mesh validation
+y_eet-synth mesh --validate-all --duration 120
+
+# Canary rollout verification
+y_eet-synth canary --expected-version v2.1.0 --expected-weight 0.20
+
+# Chaos / fault-path validation (staging only)
+y_eet-synth chaos --duration 180
+
+# W3C traceparent continuity check
+y_eet-synth trace --sample-size 200
+
+# Retry and timeout verification
+y_eet-synth retry --duration 60
+
+# List all available traffic profiles
+y_eet-synth list-profiles
+```
+
+### Makefile Targets
+
+```bash
+make smoke                                         # CI smoke gate
+make run-normal                                    # Standard production profile
+make run-mesh                                      # Istio mesh validation
+make run-canary   CANARY_VER=v2.1 CANARY_W=0.10
+make run-chaos                                     # Staging only
+
+# CI targets (build + run with exit code enforcement)
+make ci-smoke  BASE_URL=https://api-staging.yeet.com
+make ci-mesh   BASE_URL=https://api-staging.yeet.com
+make ci-canary BASE_URL=https://api-staging.yeet.com CANARY_VER=v2.1 CANARY_W=0.15
 ```
 
 ---
@@ -49,52 +125,57 @@ make run-canary CANARY_VERSION=v2.1.0 CANARY_WEIGHT=0.15
 
 | Profile | Concurrency | RPS | Duration | Notes |
 |---|---|---|---|---|
-| `smoke` | 5 | 5 | 30s | CI smoke gate |
-| `low` | 5 | 10 | 120s | Off-peak / regression |
-| `normal` | 20 | 50 | 300s | Representative production |
-| `burst` | 80 | 200 | 180s | Match/promo spike (4× burst windows) |
+| `smoke` | 5 | 5 | 30s | CI smoke gate — fast pass/fail |
+| `low` | 5 | 10 | 120s | Off-peak / regression checks |
+| `normal` | 20 | 50 | 300s | Representative production traffic |
+| `burst` | 80 | 200 | 180s | Match/promo spike — 4× burst windows every 30s |
 | `chaos` | 15 | 30 | 180s | Fault injection enabled |
-| `mesh` | 10 | 20 | 120s | Mesh validation focused |
-| `canary` | 10 | 25 | 120s | Canary split verification |
+| `mesh` | 10 | 20 | 120s | Istio mesh validation focused |
+| `canary` | 10 | 25 | 120s | Canary split + mesh validation |
+| `onboarding` | 150 | 200 | 300s | Marketing surge — 55% registration funnel |
+| `flood` | 300 | 500 | 600s | Peak stress — 5× burst every 90s |
+
+Concurrency, RPS, and duration are all overridable via CLI flags or a YAML config file.
 
 ---
 
 ## User Behaviour Archetypes
 
-Each worker iteration picks a scenario via weighted random selection:
+Each goroutine picks a scenario by weighted random selection on every iteration:
 
 | Archetype | Default weight | Flow |
 |---|---|---|
-| `anonymous` | 10% | Health checks, warmup probes |
-| `authenticated` | 25% | Login → profile → limits → config flags → validate session |
-| `active_bettor` | 45% | Balance → create session → N bets + heartbeats → history → close |
-| `wallet_heavy` | 15% | Deposit → balance → transaction history → optional withdraw → risk signal |
-| `admin` | 5% | `/_internal/status`, config, db stats (requires admin token) |
+| `anonymous` | 10% | Health probes — `/health/live`, `/health/ready`, `/health/dependencies` |
+| `authenticated` | 25% | Session validate → profile → limits → config flags |
+| `active_bettor` | 45% | Balance → create session → N bets → bet history |
+| `wallet_heavy` | 15% | Deposit → balance → transaction pages → optional withdraw → risk signal |
+| `admin` | 5% | `/_internal/status`, config, db stats (admin token required) |
+| `registration_funnel` | opt-in | Registration flow → profile → deposit → first bets |
+| `high_roller` | opt-in | Large deposits → rapid high-value bets → risk score → partial withdraw |
+| `live_event_bettor` | opt-in | Rapid burst bets on a single live game session |
 
-Weights are configurable per profile in YAML or in `synth/profiles.py`.
+Weights are defined per-profile and fully configurable in YAML.
 
 ---
 
 ## Istio Validation Checks
 
-Run with `python main.py mesh --validate-all`.
+Run with `y_eet-synth mesh --validate-all`.
 
-| Check | What it measures | Pass condition |
+| Check | What it validates | Pass condition |
 |---|---|---|
-| **Retry validation** | `x-envoy-attempt-count` distribution | avg attempts < 1.5; no unsafe retries on non-idempotent endpoints |
-| **Timeout validation** | Mesh vs app timeout alignment | No 504s without corresponding mesh timeouts; p99 within SLO |
-| **Circuit breaker** | Behaviour under high-load flood | 503s observed at expected threshold OR service handles load cleanly |
-| **Canary split** | Version header distribution across N requests | Observed split within ±5% of declared weight |
-| **Fault injection** | Abort/delay fault rate match VirtualService policy | Observed fault rate within ±15% of expected |
-| **mTLS / policy** | Istio sidecar presence; unexpected 403s | `server: istio-envoy` in ≥1 response; policy_failures < 5% |
-| **Ingress routing** | Base paths return expected status codes | No 404s on valid routes |
-| **Trace propagation** | `traceparent` continuity | ≥95% of traced requests have trace context visible in response |
+| `retry_validation` | `x-envoy-attempt-count` header presence and parseability | Header observed; retry attempts detectable |
+| `timeout_validation` | Health endpoint reachability under the active timeout policy | 200 response within latency bounds |
+| `circuit_breaker_validation` | 503 responses under a short flood burst | 503 observed, or clean handling under load |
+| `trace_propagation` | `traceparent` echo rate in responses | ≥ 95% of responses echo a trace context header |
+| `mtls_validation` | `Server: istio-envoy` header presence | Traffic confirmed routing through Istio sidecar |
+| `canary_split_validation` | Version header distribution across requests | Observed split within ±5% of declared weight |
+| `fault_injection_validation` | Abort rate under an active VirtualService fault rule | Observed fault rate within ±10% of configured % |
+| `ingress_routing` | Base URL reachable via Istio Gateway | HTTP 200 from `/health/live` |
 
-### Enabling mesh features
+**Canary validation** requires an Istio `VirtualService` routing a percentage to a subset and setting `x-canary-version` (or `x-version` / `x-app-version`) in responses.
 
-**Canary validation** requires an Istio `VirtualService` that routes a percentage to a subset and sets a version identifier header (`x-canary-version`).
-
-**Fault injection validation** requires an active `VirtualService` fault rule:
+**Fault injection validation** requires an active VirtualService fault rule:
 
 ```yaml
 fault:
@@ -104,150 +185,205 @@ fault:
     httpStatus: 503
 ```
 
-Then run: `python main.py run --config config/mesh.yaml` with `validate_fault_injection: true`.
-
 ---
 
-## CLI Reference
+## Chaos Scenarios
 
-```bash
-python main.py smoke                       # Quick 30s sanity check
-python main.py run --profile normal        # Normal production traffic
-python main.py run --profile burst         # Burst/spike simulation
-python main.py mesh --validate-all         # Full Istio validation
-python main.py canary \
-  --expected-version v2.1 \
-  --expected-weight 0.10                   # Canary split verification
-python main.py chaos                       # Fault-path validation (staging only)
-python main.py trace --sample-size 200     # Trace propagation check
-python main.py retry --duration 60         # Retry/timeout verification
-python main.py list-profiles               # Show all profiles
-```
+Run with `y_eet-synth chaos`. Each scenario validates server-side error handling for a distinct fault class:
 
-All commands accept `--base-url`, `--config`, `--log-level`, `--no-tls-verify`, `--json-report`.
+| Scenario | What it tests | Expected response |
+|---|---|---|
+| `stale_token` | Deliberately invalid JWT | 401 or 403 |
+| `malformed_payload` | Non-JSON body sent to a JSON endpoint | 400 or 422 |
+| `duplicate_replay` | Same idempotency key sent twice | 2xx (idempotent) or 409 |
+| `missing_idempotency_key` | Omits key on a write endpoint | 400, or 2xx if optional |
+| `oversized_payload` | 1 MB body | 413 or 400 |
+
+> **Warning:** Run chaos mode only in staging or controlled environments. Never against production.
 
 ---
 
 ## Report Output
 
-Every run emits a structured JSON report (`report.json` by default):
+Every run writes a structured JSON report (default: `report.json`):
 
-```
-total_requests, rps_average, global_error_rate_pct, global_p99_ms
-per endpoint:
-  total, success_rate_pct, error_rate_pct
-  p50_ms, p95_ms, p99_ms
-  timeouts, retried, avg_attempt_count
-  idempotency_hits, auth_failures
-  via_istio_pct, status_codes{}
-  canary_distribution{}, trace_propagation_rate_pct
-mesh[]: check, status, message, details{}
-chaos[]: scenario, passed, expected, got, note
-evaluation: verdict, exit_code, confidence, checks[]
+```json
+{
+  "generated_at": "2026-04-07T12:00:00Z",
+  "duration_seconds": 300.4,
+  "total_requests": 15200,
+  "rps_average": 50.6,
+  "global_error_rate_pct": 0.8,
+  "global_p99_ms": 412.0,
+  "endpoints": {
+    "POST /api/v1/bets/place": {
+      "total": 3200,
+      "success_rate_pct": 99.2,
+      "error_rate_pct": 0.8,
+      "p50_ms": 95.0,
+      "p95_ms": 280.0,
+      "p99_ms": 410.0,
+      "timeouts": 0,
+      "retried": 8,
+      "idempotency_hits": 0,
+      "via_istio_pct": 100.0,
+      "status_codes": { "201": 3174, "402": 26 }
+    }
+  },
+  "mesh": [
+    { "check": "retry_validation",   "status": "PASS", "message": "..." },
+    { "check": "trace_propagation",  "status": "PASS", "message": "..." }
+  ],
+  "chaos": [
+    { "scenario": "stale_token", "passed": true, "expected_status": 401, "status_code": 401 }
+  ],
+  "evaluation": {
+    "verdict": "PASS",
+    "exit_code": 0,
+    "checks": [
+      { "name": "global_error_rate", "verdict": "PASS", "observed": 0.8, "threshold": 2.0, "unit": "%" }
+    ]
+  }
+}
 ```
 
-Terminal output additionally shows Rich-formatted tables for all sections above.
+The terminal also prints a formatted per-endpoint table, mesh check results, and a coloured evaluation summary.
+
+---
+
+## Exit Codes
+
+| Code | Meaning | Recommended CI action |
+|---|---|---|
+| `0` | All checks passed | Proceed |
+| `1` | One or more FAIL checks | Block pipeline |
+| `2` | All passed, but WARNs present | Review before merging |
+| `3` | Insufficient data to evaluate | Re-run with a longer duration |
 
 ---
 
 ## Observability Integration
 
-Every synthetic request carries:
+Every synthetic request carries standard identification headers:
 
-| Header | Value | Purpose |
+| Header sent | Value | Purpose |
 |---|---|---|
-| `X-Synthetic` | `true` | Allows filtering synthetic traffic in Grafana / Loki dashboards |
-| `X-Request-ID` | unique per request | Correlates with server logs (`request_id` field) |
-| `traceparent` | W3C TraceContext | Enables trace stitching in Tempo / Jaeger / Zipkin |
+| `X-Synthetic` | `true` | Filter synthetic traffic in Grafana / Loki (`{synthetic="true"}`) |
+| `X-Request-ID` | UUID per request | Correlates with server `request_id` in logs |
+| `traceparent` | W3C TraceContext | Enables trace stitching in Tempo / Jaeger |
 
-**Grafana** — Use `{synthetic="true"}` to isolate synthetic traffic, or as a separate signal source for SLO burn-rate calculations.
+Envoy / Istio response headers captured per request:
 
-**Alerting** — Synthetic traffic uses the same OTel pipeline. An alert firing on a synthetic-originated trace indicates a real reliability problem. Synthetic traffic should be part of your SLO error budget — not excluded from it.
+| Header received | What it tells you |
+|---|---|
+| `x-envoy-attempt-count` | Number of retry attempts Istio made |
+| `x-envoy-upstream-service-time` | Upstream latency excluding network overhead |
+| `x-canary-version` / `x-version` | Which deployment served the request |
+| `x-idempotency-replay` | Server confirmed an idempotent cache hit |
+| `Server: istio-envoy` | Traffic is flowing through the Istio mesh sidecar |
 
 ---
 
 ## CI/CD Integration
 
-### Exit codes
-
-| Code | Meaning |
-|---|---|
-| `0` | All checks passed |
-| `1` | One or more FAIL checks — block pipeline |
-| `2` | All passed but WARNs present — review before merging |
-| `3` | Insufficient data to evaluate |
-
-### GitLab CI example
+### GitHub Actions
 
 ```yaml
-stages:
-  - deploy
-  - verify
+jobs:
+  synth-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Build
+        run: cd y_eet-synth && go build -o y_eet-synth .
+      - name: Smoke test
+        run: |
+          ./y_eet-synth/y_eet-synth smoke \
+            --base-url ${{ vars.STAGING_API_URL }} \
+            --json-report report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synth-report
+          path: y_eet-synth/report.json
 
-variables:
-  SYNTH_BASE_URL: "https://api-staging.y_eet.com"
+  synth-mesh:
+    needs: synth-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.21' }
+      - run: cd y_eet-synth && make ci-mesh BASE_URL=${{ vars.STAGING_API_URL }}
 
-smoke-test:
-  stage: verify
-  image: python:3.11-slim
-  script:
-    - cd y_eet-synth && pip install -r requirements.txt -q
-    - python main.py smoke --base-url $SYNTH_BASE_URL --json-report report.json
-  artifacts:
-    reports:
-      junit: report.json
-    paths:
-      - y_eet-synth/report.json
-    when: always
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-
-post-deploy-mesh-validation:
-  stage: verify
-  image: python:3.11-slim
-  script:
-    - cd y_eet-synth && pip install -r requirements.txt -q
-    - python main.py mesh --validate-all --duration 120
-        --base-url $SYNTH_BASE_URL --json-report report-mesh.json
-  allow_failure: false
-  artifacts:
-    paths:
-      - y_eet-synth/report-mesh.json
-    when: always
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-
-canary-gate:
-  stage: verify
-  image: python:3.11-slim
-  script:
-    - cd y_eet-synth && pip install -r requirements.txt -q
-    - python main.py canary
-        --base-url $SYNTH_BASE_URL
-        --expected-version $CANARY_VERSION
-        --expected-weight $CANARY_WEIGHT
-        --json-report report-canary.json
-  allow_failure: false
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CANARY_ACTIVE == "true"'
+  canary-gate:
+    if: github.event_name == 'deployment'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.21' }
+      - run: |
+          cd y_eet-synth && make ci-canary \
+            BASE_URL=${{ vars.STAGING_API_URL }} \
+            CANARY_VER=${{ vars.CANARY_VERSION }} \
+            CANARY_W=${{ vars.CANARY_WEIGHT }}
 ```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `SYNTH_BASE_URL` | API base URL | `http://localhost:8080` |
+| `SYNTH_INTERNAL_URL` | Internal API base URL | same as base |
+| `SYNTH_CONFIG` | Path to YAML config file | — |
+| `SYNTH_LOG_LEVEL` | Log verbosity | `INFO` |
+| `SYNTH_TLS_VERIFY` | TLS certificate verification | `true` |
+| `SYNTH_TOKEN_POOL_SIZE` | Synthetic user pool size | `20` |
+| `SYNTH_JSON_REPORT` | JSON report output path | `report.json` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint | `http://localhost:4317` |
 
 ---
 
-## Chaos Mode — Safe Use Guidelines
+## Configuration File
 
-`python main.py chaos` is designed to be safe in staging:
+Override any profile or threshold with a YAML config file:
 
-- Does not delete or corrupt data
-- Uses synthetic user accounts (registered on-the-fly)
-- Malformed requests test validation, not bypass it
-- Rate limit bursts are bounded (120 requests) and short-lived
-- Stale token tests use a pre-expired JWT that cannot authenticate
+```yaml
+# config/my-profile.yaml
+base_url: https://api-staging.yeet.com
+token_pool_size: 50
+json_report_path: /tmp/synth-report.json
 
-**Do not run chaos mode in production** without:
-1. An incident response channel open
-2. An on-call engineer monitoring dashboards
-3. A tested rollback procedure
+profile:
+  name: custom
+  concurrency: 30
+  duration_seconds: 600
+  rps_target: 80.0
+  scenario_weights:
+    anonymous: 0.05
+    authenticated: 0.20
+    active_bettor: 0.55
+    wallet_heavy: 0.15
+    admin: 0.05
+
+thresholds:
+  max_error_rate: 0.01      # 1% error ceiling
+  p99_latency_ms: 1000.0    # 1s P99 ceiling
+  max_timeout_rate: 0.002
+
+mesh:
+  validate_retries: true
+  validate_trace_propagation: true
+  validate_mtls: true
+```
+
+```bash
+y_eet-synth run --config config/my-profile.yaml
+```
 
 ---
 
@@ -255,28 +391,38 @@ canary-gate:
 
 ```
 y_eet-synth/
-├── main.py              CLI entrypoint (click)
-├── synth/
-│   ├── config.py        Config dataclasses + YAML/env loader
-│   ├── client.py        Async HTTP client: OTel, retries, Istio header capture
-│   ├── endpoints.py     All API endpoint call functions
-│   ├── payloads.py      Faker-based realistic payload factory
-│   ├── token_manager.py JWT token pool: seed, refresh, rotate
-│   ├── scenarios.py     User behaviour archetypes (coroutines)
-│   ├── profiles.py      Traffic profile definitions
-│   ├── runner.py        Async concurrency engine + token-bucket rate limiter
-│   ├── mesh.py          Istio validation scenarios (8 check categories)
-│   ├── metrics.py       In-process metrics: histograms, counters, records
-│   ├── otel.py          OpenTelemetry SDK setup + W3C propagation
-│   ├── chaos.py         Fault injection helpers
-│   ├── evaluator.py     Pass/fail evaluation model + exit codes
-│   └── reporter.py      Rich terminal reporter + JSON output
+├── main.go                  CLI entrypoint — cobra commands and flag wiring
+├── go.mod / go.sum          Go module dependencies
+├── Makefile                 Build and CI run shortcuts
 ├── config/
-│   ├── default.yaml     Default profile
-│   ├── canary.yaml      Canary validation profile
-│   ├── mesh.yaml        Mesh validation profile
-│   └── chaos.yaml       Chaos profile
-├── .env.example
-├── requirements.txt
-└── Makefile
+│   ├── default.yaml         Default profile overrides
+│   ├── canary.yaml          Canary validation profile
+│   ├── mesh.yaml            Mesh validation profile
+│   └── chaos.yaml           Chaos profile
+└── internal/
+    ├── config/              Config structs + YAML/env loader
+    ├── profiles/            All traffic profile definitions
+    ├── client/              HTTP client — headers, timing, Istio header capture
+    ├── metrics/             In-process latency histograms + counters
+    ├── token/               JWT token pool — seed, refresh, rotate
+    ├── scenarios/           User behaviour archetypes (8 types)
+    ├── runner/              Concurrent traffic engine + token-bucket rate limiter
+    ├── mesh/                Istio validation checks (8 check categories)
+    ├── chaos/               Fault injection scenarios
+    ├── evaluator/           Pass/fail verdict + exit code assignment
+    └── reporter/            Terminal table output + JSON report writer
 ```
+
+---
+
+## Troubleshooting
+
+**`connection refused` on startup** — the API must be running and accepting connections. Verify `BASE_URL` and that the Docker stack is up (`docker compose ps`).
+
+**All scenarios skipped (empty token pool)** — the `/api/v1/auth/register` endpoint is not returning 201. Confirm that migrations have run and the API is healthy (`/health/ready`).
+
+**`INSUFFICIENT_DATA` verdict** — the run duration or RPS is too low to collect enough samples. Use a longer `--duration` or a higher-concurrency profile.
+
+**Mesh checks return SKIP** — the token pool did not seed any users. Check logs for `Token pool: ready` at INFO level.
+
+**TLS errors against staging** — pass `--no-tls-verify` if the staging certificate is self-signed, or set `SYNTH_TLS_VERIFY=false`.
