@@ -29,9 +29,6 @@
 | Multi-window SLO burn-rate alerting | Fast burn (1h / 14.4×) + slow burn (6h / 6×) across all 5 SLOs |
 | Provably fair gaming | HMAC-SHA256 server-seed commitment scheme for crash and slots |
 | Reserve/release wallet model | Atomic bet staking with no hot-path row locks and zero double-spend guarantee |
-
-**Conservative effort estimate:** ~22,500 lines of authored code across 7 languages (TypeScript 5,585 · Python 4,451 · Go 3,799 · YAML 4,074 · JSON 2,910 · Shell 1,075 · Terraform 568). At a senior-engineer pace of ~150 production lines per hour, that is roughly **150 hours / 4 weeks** of focused work — before accounting for architecture design, debugging, and domain research across crypto-casino compliance, NLP pipelines, and Istio internals.
-
 ---
 
 ## Architecture
