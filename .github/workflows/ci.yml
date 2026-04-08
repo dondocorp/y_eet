@@ -170,14 +170,14 @@ jobs:
           LOG_LEVEL: silent
 
       - name: Coverage report comment
-        uses: ArtiomTr/jest-coverage-report-action@v2
-        if: github.event_name == 'pull_request'
+        uses: ArtiomTr/jest-coverage-report-action@v2.3.0
+        if: github.event_name == 'pull_request' && always()
         continue-on-error: true   # base branch may not have coverage yet (first PR)
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           skip-step: all
           coverage-file: coverage/coverage-summary.json
-          annotations: all
+          annotations: failed-tests
           threshold: 65
 
       - name: Upload coverage artifact

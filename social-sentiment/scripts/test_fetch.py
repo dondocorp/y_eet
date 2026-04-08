@@ -17,7 +17,6 @@ What it checks:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -94,7 +93,12 @@ def check_relevance(posts: list[dict], query: str) -> None:
 
 def test_db_write() -> None:
     try:
-        from storage.db import get_connection, init_db, insert_scrape_run, finish_scrape_run
+        from storage.db import (
+            finish_scrape_run,
+            get_connection,
+            init_db,
+            insert_scrape_run,
+        )
 
         init_db()
         run_id = insert_scrape_run(platform="reddit", query="[diag-test]")
@@ -115,10 +119,18 @@ def test_db_write() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Brand intelligence diagnostic")
-    parser.add_argument("--query", default=None, help="Override brand query (default: all from settings)")
-    parser.add_argument("--limit", type=int, default=25, help="Max Reddit posts per query")
+    parser.add_argument(
+        "--query",
+        default=None,
+        help="Override brand query (default: all from settings)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=25, help="Max Reddit posts per query"
+    )
     parser.add_argument("--write", action="store_true", help="Test DB write round-trip")
-    parser.add_argument("--no-relevance", action="store_true", help="Skip relevance classifier")
+    parser.add_argument(
+        "--no-relevance", action="store_true", help="Skip relevance classifier"
+    )
     args = parser.parse_args()
 
     # Load brand queries from settings
@@ -149,7 +161,10 @@ def main() -> None:
         print("\n  DIAGNOSIS: Reddit returned 0 posts.")
         print("  Possible causes:")
         print("    1. The brand has very little Reddit activity")
-        print("    2. The search query is too specific — try --query 'yeet' for broader results")
+        print(
+            "    2. The search query is too specific"
+            " — try --query 'yeet' for broader results"
+        )
         print("    3. Reddit rate-limited the request (User-Agent or IP blocked)")
         print("    4. Network issue from inside the container (check DNS/proxy)")
         print("\n  Try:")
